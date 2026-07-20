@@ -75,17 +75,12 @@ export function MetricGlowCard({
 }) {
   const a = ACCENT_CONFIG[accent] || ACCENT_CONFIG.primary;
 
-  const CardComponent = href ? Link : onClick ? "button" : "div";
-  const cardProps = href ? { href } : onClick ? { onClick, type: "button" } : {};
+  const wrapperClassName = cn(
+    href || onClick ? "cursor-pointer" : "cursor-default",
+    "block"
+  );
 
-  return (
-    <CardComponent
-      {...cardProps}
-      className={cn(
-        href || onClick ? "cursor-pointer" : "cursor-default",
-        "block"
-      )}
-    >
+  const card = (
       <Card
         className={cn(
           "group relative overflow-hidden border border-border/40 bg-card/80 shadow-md backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg",
@@ -147,6 +142,23 @@ export function MetricGlowCard({
           )}
         </CardContent>
       </Card>
-    </CardComponent>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className={wrapperClassName}>
+        {card}
+      </Link>
+    );
+  }
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={wrapperClassName}>
+        {card}
+      </button>
+    );
+  }
+
+  return <div className={wrapperClassName}>{card}</div>;
 }
