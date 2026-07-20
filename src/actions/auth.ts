@@ -59,7 +59,7 @@ async function writeAuditLog(
 
 // ─── In-memory rate limiter (resets on cold start — acceptable for free tier) ─
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_MAX = 50; // Increased from 5 to 50 for development
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
 function checkRateLimit(key: string): boolean {
@@ -89,9 +89,18 @@ export async function login(
     password: formData.get("password") as string,
   };
 
+  // Detailed logging for debugging
+  console.log('[LOGIN] Received login attempt:', {
+    email: raw.email,
+    passwordLength: raw.password?.length || 0,
+    hasEmail: !!raw.email,
+    hasPassword: !!raw.password
+  });
+
   const parsed = loginSchema.safeParse(raw);
   if (!parsed.success) {
     const firstErr = parsed.error.issues[0];
+    console.log('[LOGIN] Validation failed:', firstErr);
     return {
       error: toAuthError(
         "VALIDATION_ERROR",
@@ -102,6 +111,7 @@ export async function login(
   }
 
   const { email, password } = parsed.data;
+  console.log('[LOGIN] Validation passed, attempting Supabase auth...');
 
   // Rate limit by email (no IP in server actions easily)
   const rlKey = `login:${email.toLowerCase()}`;
@@ -121,7 +131,17 @@ export async function login(
     password,
   });
 
+  console.log('[LOGIN] Supabase response:', {
+    hasData: !!data,
+    hasUser: !!data?.user,
+    hasSession: !!data?.session,
+    hasError: !!error,
+    errorCode: error?.code,
+    errorMessage: error?.message
+  });
+
   if (error) {
+    console.log('[LOGIN] Auth error - failed login');
     await writeAuditLog(null, "login_failed", { email });
     return {
       error: toAuthError(
@@ -131,9 +151,11 @@ export async function login(
     };
   }
 
+  console.log('[LOGIN] Auth successful, user ID:', data.user.id);
   await writeAuditLog(data.user.id, "login_success", { email });
 
   revalidatePath("/", "layout");
+  console.log('[LOGIN] Returning success with redirect to /dashboard');
   return { data: { redirectTo: "/dashboard" } };
 }
 

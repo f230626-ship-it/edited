@@ -408,10 +408,12 @@
 }
 
 .loading-logo-filter {
-  filter: brightness(1.8) contrast(1.55) drop-shadow(0 0 50px rgba(229, 161, 88, 1)) drop-shadow(0 0 30px rgba(255, 215, 110, 1));
+  /* Dark sharp orange for light mode - high visibility (inverts white logo to dark orange) */
+  filter: invert(40%) sepia(90%) saturate(3000%) hue-rotate(10deg) brightness(85%) contrast(120%) drop-shadow(0 0 30px rgba(204, 85, 0, 0.4)) drop-shadow(0 0 15px rgba(230, 81, 0, 0.3));
 }
 
 .dark .loading-logo-filter {
+  /* Original golden/orange filter for dark mode */
   filter: brightness(1.5) contrast(1.35) drop-shadow(0 0 30px rgba(255, 215, 110, 0.7));
 }
 
@@ -439,7 +441,8 @@
 :root:not(.dark) .loading-logo-center-glow {
   width: 110%;
   height: 120%;
-  background: radial-gradient(ellipse, rgba(255, 215, 110, 1) 0%, rgba(229, 161, 88, 1) 40%, rgba(229, 161, 88, 0) 70%);
+  /* Dark sharp orange glow for light mode */
+  background: radial-gradient(ellipse, rgba(204, 85, 0, 0.9) 0%, rgba(230, 81, 0, 0.8) 40%, rgba(230, 81, 0, 0) 70%);
   filter: blur(52px);
 }
 

@@ -1,5 +1,5 @@
-import { TeamLoadingSkeleton } from "@/components/team/team-loading";
+import { PageLoader } from "@/components/ui/page-loader";
 
 export default function TeamLoading() {
-  return <TeamLoadingSkeleton />;
+  return <PageLoader />;
 }
