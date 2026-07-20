@@ -84,39 +84,43 @@ export function PendingLeaveApprovals({ leaves }: { leaves: PendingLeave[] }) {
           <Badge variant="secondary">{leaves.length}</Badge>
         </div>
         <div className="overflow-x-auto">
-          <Table style={{ tableLayout: "fixed" }}>
+          <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent border-b border-border/50">
-                <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-2.5 pl-4 pr-2 w-[20%]">Employee</TableHead>
-                <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-2.5 px-2 w-[12%]">Type</TableHead>
-                <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-2.5 px-2 w-[26%]">Dates</TableHead>
-                <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-2.5 px-2 w-[9%] text-right">Days</TableHead>
-                <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-2.5 px-2 w-[20%]">Reason</TableHead>
-                <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-2.5 pr-4 pl-2 w-[13%]">Actions</TableHead>
+                <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-3 pl-4 pr-3 whitespace-nowrap">Employee</TableHead>
+                <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-3 px-3 whitespace-nowrap">Type</TableHead>
+                <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-3 px-3 whitespace-nowrap">Dates</TableHead>
+                <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-3 px-3 text-right whitespace-nowrap">Days</TableHead>
+                <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-3 px-3">Reason</TableHead>
+                <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-3 pl-3 pr-4 whitespace-nowrap">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {leaves.map((leave) => (
-                <TableRow key={leave.id} className="border-b border-border/30">
-                  <TableCell className="py-2.5 pl-4 pr-2 overflow-hidden">
-                    <div className="truncate">
-                      <p className="font-medium text-sm truncate">{leave.employee?.full_name}</p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {leave.employee?.employee_code ?? leave.employee?.designation}
-                      </p>
-                    </div>
+                <TableRow key={leave.id} className="border-b border-border/30 align-top">
+                  <TableCell className="py-3 pl-4 pr-3">
+                    <p className="font-medium text-sm whitespace-nowrap">{leave.employee?.full_name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {leave.employee?.employee_code ?? leave.employee?.designation}
+                    </p>
                   </TableCell>
-                  <TableCell className="py-2.5 px-2 text-sm truncate overflow-hidden">
+                  <TableCell className="py-3 px-3 text-sm whitespace-nowrap">
                     {LEAVE_TYPE_LABELS[leave.leave_type]}
                   </TableCell>
-                  <TableCell className="py-2.5 px-2 text-sm overflow-hidden">
-                    <div className="truncate">{formatDate(leave.start_date)} – {formatDate(leave.end_date)}</div>
+                  <TableCell className="py-3 px-3 text-sm whitespace-nowrap">
+                    {formatDate(leave.start_date)} – {formatDate(leave.end_date)}
                   </TableCell>
-                  <TableCell className="py-2.5 px-2 text-right tabular-nums font-semibold overflow-hidden">
+                  <TableCell className="py-3 px-3 text-right tabular-nums font-semibold">
                     {leave.days_count}
                   </TableCell>
-                  <TableCell className="py-2.5 px-2 truncate text-sm text-muted-foreground overflow-hidden max-w-0">
-                    {leave.reason}
+                  <TableCell className="py-3 px-3 text-sm">
+                    {leave.reason ? (
+                      <p className="text-foreground/80 leading-relaxed break-words min-w-[180px] max-w-[320px]">
+                        {leave.reason}
+                      </p>
+                    ) : (
+                      <span className="text-muted-foreground/50">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="py-2.5 pr-4 pl-2 overflow-hidden">
                     <div className="flex gap-1.5">
@@ -152,6 +156,7 @@ export function PendingLeaveApprovals({ leaves }: { leaves: PendingLeave[] }) {
           </Table>
         </div>
       </div>
+
 
       {/* Rejection reason dialog */}
       <Dialog

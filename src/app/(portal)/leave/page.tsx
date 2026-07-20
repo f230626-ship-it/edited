@@ -4,20 +4,11 @@ import { requireAuth, isAdmin } from "@/lib/auth";
 import { PageHeader } from "@/components/ui/page-header";
 import { LeaveForm } from "@/components/leave/leave-form";
 import { PendingLeaveApprovals } from "@/components/leave/pending-approvals";
+import { LeaveHistoryTable } from "@/components/leave/leave-history-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { LEAVE_TYPE_LABELS, LEAVE_STATUS_LABELS, STATUS_COLORS } from "@/lib/constants";
-import { formatDate } from "@/lib/utils/date";
 import { getPendingLeavesForLead } from "@/actions/leaves";
 import { LeaveQuotaEditor } from "@/components/admin/leave-quota-editor";
+
 
 export default async function LeavePage() {
   const employee = await requireAuth();
@@ -103,56 +94,7 @@ export default async function LeavePage() {
           <CardTitle className="text-sm sm:text-base">Leave History</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto -mx-2 sm:mx-0 px-2 sm:px-0">
-          {leaves && leaves.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="font-semibold text-[10px] sm:text-xs tracking-wider uppercase text-muted-foreground py-2 sm:py-3 pl-2 sm:pl-4 pr-2">Type</TableHead>
-                    <TableHead className="font-semibold text-[10px] sm:text-xs tracking-wider uppercase text-muted-foreground py-2 sm:py-3 px-2">From</TableHead>
-                    <TableHead className="font-semibold text-[10px] sm:text-xs tracking-wider uppercase text-muted-foreground py-2 sm:py-3 px-2">To</TableHead>
-                    <TableHead className="font-semibold text-[10px] sm:text-xs tracking-wider uppercase text-muted-foreground py-2 sm:py-3 px-2 text-right">Days</TableHead>
-                    <TableHead className="font-semibold text-[10px] sm:text-xs tracking-wider uppercase text-muted-foreground py-2 sm:py-3 px-2">Status</TableHead>
-                    <TableHead className="font-semibold text-[10px] sm:text-xs tracking-wider uppercase text-muted-foreground py-2 sm:py-3 px-2">Reason</TableHead>
-                    <TableHead className="font-semibold text-[10px] sm:text-xs tracking-wider uppercase text-muted-foreground py-2 sm:py-3 pr-2 sm:pr-4 pl-2">Applied</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {leaves.map((leave) => (
-                    <TableRow key={leave.id} className="border-b border-border/30">
-                      <TableCell className="py-2 sm:py-3 pl-2 sm:pl-4 pr-2 text-xs sm:text-sm">
-                        {LEAVE_TYPE_LABELS[leave.leave_type]}
-                      </TableCell>
-                      <TableCell className="py-2 sm:py-3 px-2 text-xs sm:text-sm">
-                        {formatDate(leave.start_date)}
-                      </TableCell>
-                      <TableCell className="py-2 sm:py-3 px-2 text-xs sm:text-sm">
-                        {formatDate(leave.end_date)}
-                      </TableCell>
-                      <TableCell className="py-2 sm:py-3 px-2 text-right tabular-nums font-semibold text-xs sm:text-sm">{leave.days_count}</TableCell>
-                      <TableCell className="py-2 sm:py-3 px-2">
-                        <Badge className={STATUS_COLORS[leave.status]} variant="secondary">
-                          {LEAVE_STATUS_LABELS[leave.status]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="py-2 sm:py-3 px-2 text-xs sm:text-sm">
-                        {leave.status === 'rejected' && leave.rejection_reason ? (
-                          <span className="text-destructive text-[10px] sm:text-xs">{leave.rejection_reason}</span>
-                        ) : (
-                          <span className="text-muted-foreground text-[10px] sm:text-xs">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="py-2 sm:py-3 pr-2 sm:pr-4 pl-2 text-xs sm:text-sm text-muted-foreground">
-                        {formatDate(leave.created_at)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-          ) : (
-            <p className="text-xs sm:text-sm text-muted-foreground">No leave requests yet</p>
-          )}
-          </div>
+          <LeaveHistoryTable leaves={leaves ?? []} />
         </CardContent>
       </Card>
     </div>
