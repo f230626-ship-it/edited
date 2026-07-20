@@ -1,0 +1,311 @@
+{
+  "runAt": "2026-07-20T12:05:38.389Z",
+  "app": "https://hrms.mindvista.io",
+  "employees": [
+    {
+      "id": "6eead8ec-825b-4883-9edc-e63e4401905e",
+      "email": "abdullahharoon681@gmail.com",
+      "role": "employee",
+      "pm_role": "developer",
+      "designation": "Intern Business Developer",
+      "status": "active",
+      "manager_id": "2ff337a7-489b-4f9a-86c3-5ee6497585be",
+      "lead_id": "2ff337a7-489b-4f9a-86c3-5ee6497585be",
+      "user_id": "2c7a2c82-b169-4477-8700-374d0ccb64e1"
+    },
+    {
+      "id": "c06d1189-bf29-4cf9-a336-8a0179630221",
+      "email": "asimtassaduqwork@gmail.com",
+      "role": "employee",
+      "pm_role": "developer",
+      "designation": "Business Developer",
+      "status": "active",
+      "manager_id": "2ff337a7-489b-4f9a-86c3-5ee6497585be",
+      "lead_id": "2ff337a7-489b-4f9a-86c3-5ee6497585be",
+      "user_id": "b6a772af-9330-4b69-8919-b95aba67870a"
+    },
+    {
+      "id": "1af1c54f-0571-4b96-8975-87249de5a936",
+      "email": "faamer003@gmail.com",
+      "role": "manager",
+      "pm_role": "developer",
+      "designation": "Software Engineer",
+      "status": "active",
+      "manager_id": "2ff337a7-489b-4f9a-86c3-5ee6497585be",
+      "lead_id": "2ff337a7-489b-4f9a-86c3-5ee6497585be",
+      "user_id": "eca6633f-f7aa-4fb7-9084-afc6150da2ac"
+    },
+    {
+      "id": "5d78815c-cd61-4327-b8ac-a81102661f4c",
+      "email": "mominawaqar18@gmail.com",
+      "role": "employee",
+      "pm_role": "developer",
+      "designation": "Software Engineer",
+      "status": "active",
+      "manager_id": null,
+      "lead_id": "2ff337a7-489b-4f9a-86c3-5ee6497585be",
+      "user_id": "c0c7c97f-815e-440f-a012-a46ab5638fa4"
+    },
+    {
+      "id": "2ff337a7-489b-4f9a-86c3-5ee6497585be",
+      "email": "mabdullahshafiq100@gmail.com",
+      "role": "admin",
+      "pm_role": "developer",
+      "designation": "CEO / Admin",
+      "status": "active",
+      "manager_id": null,
+      "lead_id": null,
+      "user_id": "116055c1-04bb-4aba-a648-970c81fcdb33"
+    },
+    {
+      "id": "a5e9f741-c8f7-45a0-bc40-2557ffd4a48d",
+      "email": "work.faizan81@gmail.com",
+      "role": "employee",
+      "pm_role": "developer",
+      "designation": "Business Developer",
+      "status": "active",
+      "manager_id": "6eead8ec-825b-4883-9edc-e63e4401905e",
+      "lead_id": "2ff337a7-489b-4f9a-86c3-5ee6497585be",
+      "user_id": "e8dff3a7-8ac3-4e62-87c6-99f04b8b6f8a"
+    }
+  ],
+  "passed": 31,
+  "failed": 8,
+  "total": 39,
+  "results": [
+    {
+      "area": "Setup",
+      "name": "Employees exist in DB",
+      "pass": true,
+      "detail": "count=6"
+    },
+    {
+      "area": "Setup",
+      "name": "Admin employee found",
+      "pass": true,
+      "detail": "mabdullahshafiq100@gmail.com"
+    },
+    {
+      "area": "Setup",
+      "name": "Manager employee found",
+      "pass": true,
+      "detail": "faamer003@gmail.com"
+    },
+    {
+      "area": "Setup",
+      "name": "Regular employee found",
+      "pass": true,
+      "detail": "mominawaqar18@gmail.com"
+    },
+    {
+      "area": "Setup",
+      "name": "BD employee found",
+      "pass": true,
+      "detail": "abdullahharoon681@gmail.com"
+    },
+    {
+      "area": "Auth",
+      "name": "Admin can login (admin@ or dev@)",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "area": "Auth",
+      "name": "Manager test account can login (sarah)",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "area": "Auth",
+      "name": "Employee test account can login (fatima)",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "area": "Auth",
+      "name": "Admin login has linked employee profile",
+      "pass": false,
+      "detail": "status=200 body=[]"
+    },
+    {
+      "area": "Auth",
+      "name": "Sarah login has linked employee profile",
+      "pass": false,
+      "detail": "NO PROFILE — will redirect to login?error=no_employee_profile"
+    },
+    {
+      "area": "Auth",
+      "name": "Fatima login has linked employee profile",
+      "pass": false,
+      "detail": "NO PROFILE — broken test account"
+    },
+    {
+      "area": "Auth",
+      "name": "Have admin session WITH employee profile",
+      "pass": false,
+      "detail": "none"
+    },
+    {
+      "area": "Public",
+      "name": "/login loads",
+      "pass": true,
+      "detail": "status=200"
+    },
+    {
+      "area": "Public",
+      "name": "/forgot-password loads",
+      "pass": true,
+      "detail": "status=200"
+    },
+    {
+      "area": "Public",
+      "name": "/reset-password loads",
+      "pass": true,
+      "detail": "status=200"
+    },
+    {
+      "area": "Public",
+      "name": "Unauth /dashboard redirects to login",
+      "pass": true,
+      "detail": "status=307 loc=/login?redirectTo=%2Fdashboard"
+    },
+    {
+      "area": "Public",
+      "name": "Unauth /admin/employees redirects to login",
+      "pass": true,
+      "detail": "status=307 loc=/login?redirectTo=%2Fadmin%2Femployees"
+    },
+    {
+      "area": "Public",
+      "name": "Unauth /sales/command redirects to login",
+      "pass": true,
+      "detail": "status=307 loc=/login?redirectTo=%2Fsales%2Fcommand"
+    },
+    {
+      "area": "Public",
+      "name": "Unauth /projects redirects to login",
+      "pass": true,
+      "detail": "status=307 loc=/login?redirectTo=%2Fprojects"
+    },
+    {
+      "area": "Public",
+      "name": "Unauth /leave redirects to login",
+      "pass": true,
+      "detail": "status=307 loc=/login?redirectTo=%2Fleave"
+    },
+    {
+      "area": "Security",
+      "name": "Anonymous cannot read employees",
+      "pass": true,
+      "detail": "count=0"
+    },
+    {
+      "area": "Edge",
+      "name": "sarah auth user has employee row",
+      "pass": false,
+      "detail": "ORPHAN AUTH USER"
+    },
+    {
+      "area": "Edge",
+      "name": "fatima auth user has employee row",
+      "pass": false,
+      "detail": "ORPHAN AUTH USER"
+    },
+    {
+      "area": "Sales",
+      "name": "abdullahharoon681@gmail.com sales access expected=true",
+      "pass": true,
+      "detail": "role=employee designation=Intern Business Developer"
+    },
+    {
+      "area": "Sales",
+      "name": "asimtassaduqwork@gmail.com sales access expected=true",
+      "pass": true,
+      "detail": "role=employee designation=Business Developer"
+    },
+    {
+      "area": "Sales",
+      "name": "faamer003@gmail.com sales access expected=false",
+      "pass": true,
+      "detail": "role=manager designation=Software Engineer"
+    },
+    {
+      "area": "Sales",
+      "name": "mominawaqar18@gmail.com sales access expected=false",
+      "pass": true,
+      "detail": "role=employee designation=Software Engineer"
+    },
+    {
+      "area": "Sales",
+      "name": "mabdullahshafiq100@gmail.com sales access expected=true",
+      "pass": true,
+      "detail": "role=admin designation=CEO / Admin"
+    },
+    {
+      "area": "Sales",
+      "name": "work.faizan81@gmail.com sales access expected=true",
+      "pass": true,
+      "detail": "role=employee designation=Business Developer"
+    },
+    {
+      "area": "Access",
+      "name": "Admin leaves page requires role=admin (managers excluded in route)",
+      "pass": true,
+      "detail": "requireRole('admin') on /admin/leaves"
+    },
+    {
+      "area": "Access",
+      "name": "isManagerOrAdmin() currently returns only admin===true",
+      "pass": true,
+      "detail": "BUG RISK: managers may be treated incorrectly in helpers"
+    },
+    {
+      "area": "Security",
+      "name": "Orphan employee token cannot create holidays",
+      "pass": true,
+      "detail": "status=403"
+    },
+    {
+      "area": "Security",
+      "name": "Orphan employee token cannot create policies",
+      "pass": true,
+      "detail": "status=403"
+    },
+    {
+      "area": "UI",
+      "name": "Login page references Inter font",
+      "pass": true,
+      "detail": "Inter loaded via root layout"
+    },
+    {
+      "area": "UI",
+      "name": "Login page has viewport meta",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "area": "UI",
+      "name": "Production login HTTP 200",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "area": "Config",
+      "name": "EMAIL_PROVIDER set locally",
+      "pass": false,
+      "detail": "none (Supabase default)"
+    },
+    {
+      "area": "Config",
+      "name": "EMAILVERIFY_API_KEY set locally",
+      "pass": false,
+      "detail": ""
+    },
+    {
+      "area": "Config",
+      "name": "NEXT_PUBLIC_APP_URL",
+      "pass": true,
+      "detail": "missing"
+    }
+  ]
+}
