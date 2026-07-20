@@ -45,7 +45,7 @@ export default function DirectLoginPage() {
       
     } catch (err) {
       console.error('Unexpected error:', err);
-      setError(`Unexpected error: ${err.message}`);
+      setError(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }
