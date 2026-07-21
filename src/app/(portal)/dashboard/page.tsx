@@ -1,18 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Bell, CalendarDays, Package, LayoutDashboard } from "lucide-react";
-import { formatDate } from "@/lib/utils/date";
-import { LEAVE_TYPE_LABELS, LEAVE_STATUS_LABELS, STATUS_COLORS } from "@/lib/constants";
-import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { AnalyticsHeader } from "@/components/dashboard/analytics-header";
+import { MetricsGrid } from "@/components/dashboard/metrics-grid";
+import { PerformanceChart } from "@/components/dashboard/performance-chart";
+import { TopPerformers } from "@/components/dashboard/top-performers";
 import { getTeamHierarchy } from "@/lib/hierarchy";
 import { getPendingLeavesForLead } from "@/actions/leaves";
-import { PendingLeaveApprovals } from "@/components/leave/pending-approvals";
-import { DashboardClient } from "@/components/dashboard/dashboard-client";
-import { MyProjects } from "@/components/dashboard/my-projects";
 
 export default async function DashboardPage() {
   const employee = await requireAuth();
@@ -21,6 +14,7 @@ export default async function DashboardPage() {
 
   let myProjects: any[] = [];
   const isAdmin = employee.role === "admin" || employee.pm_role === "admin";
+  
   if (!isAdmin) {
     try {
       const { data: resourceRows } = await adminSupabase
@@ -46,6 +40,7 @@ export default async function DashboardPage() {
     { data: leaveBalance },
     { data: recentLeaves },
     { data: assignedAssets },
+    { data: allEmployees },
     hierarchy,
     pendingForLead,
   ] = await Promise.all([
@@ -61,138 +56,56 @@ export default async function DashboardPage() {
       .select("*, asset:assets(*)")
       .eq("employee_id", employee.id)
       .is("return_date", null),
+    supabase
+      .from("employees")
+      .select("id, full_name, role, department, created_at")
+      .order("created_at", { ascending: false }),
     getTeamHierarchy(employee.id),
     getPendingLeavesForLead(),
   ]);
 
   const teamSize = hierarchy.directReports.length + hierarchy.leadTeam.length;
 
+  // Calculate metrics
+  const totalEmployees = allEmployees?.length ?? 0;
+  const activeProjects = myProjects.filter(p => p.status === 'active').length;
+  const pendingLeaves = pendingForLead.length;
+  const totalAssets = assignedAssets?.length ?? 0;
+
   const annualRemaining = (leaveBalance?.annual_quota ?? 0) - (leaveBalance?.annual_used ?? 0);
   const sickRemaining = (leaveBalance?.sick_quota ?? 0) - (leaveBalance?.sick_used ?? 0);
   const casualRemaining = (leaveBalance?.casual_quota ?? 0) - (leaveBalance?.casual_used ?? 0);
 
   return (
-    <div className="space-y-4 sm:space-y-5 md:space-y-6">
-      <div className="mb-2 sm:mb-4 md:mb-6">
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-sm sm:text-base text-muted-foreground">
-          {employee.employee_code
-            ? `${employee.full_name} · ${employee.employee_code}`
-            : employee.full_name}
-        </p>
-      </div>
-
-      {/* Clickable Stat Cards — handled by client component */}
-      <DashboardClient
-        leaveBalance={leaveBalance}
-        recentLeaves={recentLeaves}
-        assignedAssets={assignedAssets}
-        teamSize={teamSize}
-        annualRemaining={annualRemaining}
-        sickRemaining={sickRemaining}
-        casualRemaining={casualRemaining}
+    <div className="space-y-6 pb-8">
+      <AnalyticsHeader 
+        userName={employee.full_name}
+        userCode={employee.employee_code}
       />
 
-      <div className="mt-4 sm:mt-5 md:mt-6">
-        <MyProjects projects={myProjects} />
-      </div>
+      <MetricsGrid
+        metrics={{
+          totalEmployees,
+          activeProjects,
+          pendingLeaves,
+          totalAssets,
+          teamSize,
+          annualRemaining,
+          sickRemaining,
+          casualRemaining,
+        }}
+      />
 
-      {pendingForLead.length > 0 && (
-        <Card className="mt-4 sm:mt-5 md:mt-6 overflow-hidden pt-0">
-          <CardHeader className="bg-amber-50 dark:bg-transparent border-b border-amber-100 dark:border-border py-(--card-spacing)">
-            <CardTitle className="flex items-center gap-2 text-sm sm:text-base text-amber-900 dark:text-foreground">
-              <Bell className="h-4 w-4 text-amber-600 dark:text-primary" />
-              Leave Approvals Needed
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <PendingLeaveApprovals leaves={pendingForLead} />
-          </CardContent>
-        </Card>
-      )}
+      <PerformanceChart
+        recentLeaves={recentLeaves ?? []}
+        leaveBalance={leaveBalance}
+      />
 
-      <div className="mt-4 sm:mt-5 md:mt-6 grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
-        <Card className="overflow-hidden pt-0">
-          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-orange-50 dark:bg-transparent border-b border-orange-100 dark:border-border py-(--card-spacing)">
-            <CardTitle className="text-sm sm:text-base text-orange-900 dark:text-foreground">Recent Leave Requests</CardTitle>
-            <Link href="/leave" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-              View all
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {recentLeaves && recentLeaves.length > 0 ? (
-              <div className="space-y-2 sm:space-y-3">
-                {recentLeaves.slice(0, 5).map((leave) => (
-                  <div key={leave.id} className="flex items-center justify-between rounded-lg border p-2.5 sm:p-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs sm:text-sm font-medium truncate">{LEAVE_TYPE_LABELS[leave.leave_type]}</p>
-                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
-                        {formatDate(leave.start_date)} – {formatDate(leave.end_date)} ({leave.days_count}d)
-                      </p>
-                    </div>
-                    <Badge className={STATUS_COLORS[leave.status]} variant="secondary">
-                      {LEAVE_STATUS_LABELS[leave.status]}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs sm:text-sm text-muted-foreground">No leave requests yet</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden pt-0">
-          <CardHeader className="bg-green-50 dark:bg-transparent border-b border-green-100 dark:border-border py-(--card-spacing)">
-            <CardTitle className="text-sm sm:text-base text-green-900 dark:text-foreground">Assigned Assets</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {assignedAssets && assignedAssets.length > 0 ? (
-              <div className="space-y-1.5 sm:space-y-2">
-                {assignedAssets.map((a) => (
-                  <div key={a.id} className="flex items-center justify-between rounded-lg border p-2.5 sm:p-3 text-xs sm:text-sm">
-                    <span className="font-medium truncate min-w-0 flex-1">{a.asset?.name}</span>
-                    <span className="text-muted-foreground ml-2 shrink-0">{a.asset?.serial_number ?? "—"}</span>
-                  </div>
-                ))}
-                <Link href="/assets" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-2 w-full")}>
-                  View all assets
-                </Link>
-              </div>
-            ) : (
-              <p className="text-xs sm:text-sm text-muted-foreground">No assets assigned</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="mt-4 sm:mt-5 md:mt-6 overflow-hidden pt-0">
-        <CardHeader className="bg-blue-50 dark:bg-transparent border-b border-blue-100 dark:border-border py-(--card-spacing)">
-          <CardTitle className="text-sm sm:text-base text-blue-900 dark:text-foreground">Leave Balance Summary</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 sm:space-y-4">
-          {[
-            { label: "Annual", remaining: annualRemaining, total: leaveBalance?.annual_quota ?? 0 },
-            { label: "Sick", remaining: sickRemaining, total: leaveBalance?.sick_quota ?? 0 },
-            { label: "Casual", remaining: casualRemaining, total: leaveBalance?.casual_quota ?? 0 },
-          ].map((item) => (
-            <div key={item.label}>
-              <div className="mb-1 flex justify-between text-xs sm:text-sm">
-                <span>{item.label}</span>
-                <span className="text-muted-foreground">
-                  {item.remaining} / {item.total} remaining
-                </span>
-              </div>
-              <div className="h-1.5 sm:h-2 rounded-full bg-muted">
-                <div
-                  className="h-1.5 sm:h-2 rounded-full bg-primary transition-all"
-                  style={{ width: `${item.total ? (item.remaining / item.total) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      <TopPerformers
+        employees={allEmployees ?? []}
+        projects={myProjects}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 }
