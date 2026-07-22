@@ -42,10 +42,10 @@ export function NotificationBell({
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger className="relative inline-flex rounded-lg p-2 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring touch-manipulation min-h-[44px] min-w-[44px] items-center justify-center active:scale-95 transition-transform">
-        <Bell className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
+      <DropdownMenuTrigger className="relative inline-flex rounded-md p-1.5 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-primary/40 touch-manipulation min-h-[44px] min-w-[44px] items-center justify-center active:scale-95 transition-all">
+        <Bell className="h-[18px] w-[18px]" />
         {unreadCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 sm:h-[18px] sm:w-[18px] items-center justify-center rounded-full bg-primary text-[9px] sm:text-[10px] font-bold text-primary-foreground shadow-sm">
+          <span className="absolute -right-px -top-px flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-primary-foreground shadow-sm ring-2 ring-background">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}

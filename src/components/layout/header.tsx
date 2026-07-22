@@ -95,19 +95,19 @@ export function Header({
         </div>
       </div>
 
-      <div className="flex items-center gap-0.5 sm:gap-1 shrink-0 ml-2 sm:ml-4 rounded-full border border-border/40 bg-muted/20 p-0.5 sm:p-1 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
-        <div className="flex items-center gap-0 sm:gap-0.5">
+      <div className="flex items-center gap-0.5 shrink-0 ml-2 sm:ml-3 rounded-lg border border-border/30 bg-background/60 backdrop-blur-sm p-0.5 shadow-sm hover:shadow-md transition-shadow">
+        <div className="flex items-center gap-0">
           <ThemeSwitcher />
           <NotificationBell notifications={notifications} unreadCount={unreadCount} />
         </div>
         
-        <div className="h-4 w-[1px] bg-border/60 mx-0.5 sm:mx-1 shrink-0" />
+        <div className="h-4 w-px bg-border/20 mx-0.5 shrink-0" />
         
         <DropdownMenu>
-          <DropdownMenuTrigger className="relative inline-flex rounded-full outline-none transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-primary/50 shrink-0 touch-manipulation min-h-[44px] min-w-[44px] items-center justify-center">
-            <Avatar className="h-8 w-8 sm:h-[30px] sm:w-[30px] md:h-[32px] md:w-[32px] border border-border/60 bg-background shadow-xs">
+          <DropdownMenuTrigger className="relative inline-flex rounded-md outline-none transition-transform hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-primary/40 shrink-0 touch-manipulation min-h-[44px] min-w-[44px] items-center justify-center p-0.5">
+            <Avatar className="h-7 w-7 sm:h-[26px] sm:w-[26px] md:h-7 md:w-7 border border-border/40 bg-background">
               <AvatarImage src={employee.profile_photo_url ?? undefined} className="object-cover" />
-              <AvatarFallback className="bg-gradient-to-br from-primary/10 to-primary/5 text-primary font-semibold text-[10px] sm:text-xs">
+              <AvatarFallback className="bg-gradient-to-br from-primary/10 to-primary/5 text-primary font-semibold text-[10px]">
                 {initials}
               </AvatarFallback>
             </Avatar>
