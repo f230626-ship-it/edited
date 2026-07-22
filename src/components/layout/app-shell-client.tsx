@@ -46,7 +46,7 @@ export function AppShellClient({
         {/* Mobile overlay */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 z-40 bg-black/50 lg:hidden backdrop-blur-sm"
+            className="fixed inset-0 z-40 bg-black/50 lg:hidden backdrop-blur-sm transition-opacity duration-300"
             onClick={() => setSidebarOpen(false)}
             aria-hidden="true"
           />
@@ -55,10 +55,10 @@ export function AppShellClient({
         {/* Sidebar */}
         <div
           className={`
-            fixed inset-y-0 left-0 z-50 w-[280px] sm:w-[300px] lg:w-[288px] xl:w-[288px] 2xl:w-[320px]
+            fixed inset-y-0 left-0 z-50 w-full max-w-[280px] sm:max-w-[300px] md:max-w-[280px]
+            lg:relative lg:translate-x-0 lg:w-auto lg:max-w-[260px] xl:max-w-[280px] 2xl:max-w-[300px]
             transform transition-transform duration-300 ease-in-out
-            lg:relative lg:translate-x-0
-            ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+            ${sidebarOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}
           `}
         >
           <Sidebar
@@ -73,15 +73,15 @@ export function AppShellClient({
         </div>
 
         {/* Main content */}
-        <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+        <div className="flex flex-1 flex-col overflow-hidden min-w-0 w-full">
           <Header
             employee={employee}
             notifications={notifications}
             unreadCount={unreadCount}
             onMenuClick={() => setSidebarOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50/30 dark:bg-background">
-            <div className="mx-auto w-full max-w-[2560px] px-2 sm:px-4 md:px-5 lg:px-6 xl:px-8 2xl:px-10 py-2 sm:py-4 md:py-5 lg:py-6 xl:py-8 2xl:py-10">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50/30 dark:bg-background overscroll-contain">
+            <div className="mx-auto w-full max-w-[2560px] px-3 sm:px-4 md:px-5 lg:px-6 xl:px-8 2xl:px-10 py-3 sm:py-4 md:py-5 lg:py-6 xl:py-8">
               <AnimatedPage>{children}</AnimatedPage>
             </div>
           </main>

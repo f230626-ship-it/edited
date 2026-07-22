@@ -3,39 +3,44 @@ import { cn } from "@/lib/utils";
 
 export type KpiTone = "primary" | "blue" | "amber" | "green" | "violet";
 
-const TONE_STYLES: Record<
+const TONE_MAPPING: Record<
   KpiTone,
-  { iconColor: string; headerBg: string; headerTextColor: string; borderColor: string }
+  {
+    glowClass: string;
+    iconColor: string;
+    iconGlow: string;
+    trendBadge: string;
+  }
 > = {
   primary: {
+    glowClass: "glass-card-glow-primary",
     iconColor: "text-[#e5a158]",
-    headerBg: "bg-orange-50 dark:bg-transparent",
-    headerTextColor: "text-orange-900 dark:text-foreground",
-    borderColor: "border-orange-100 dark:border-border",
+    iconGlow: "bg-[#e5a158]",
+    trendBadge: "bg-[#e5a158]/10 text-[#e5a158]",
   },
   blue: {
+    glowClass: "glass-card-glow-blue",
     iconColor: "text-[#3b82f6]",
-    headerBg: "bg-blue-50 dark:bg-transparent",
-    headerTextColor: "text-blue-900 dark:text-foreground",
-    borderColor: "border-blue-100 dark:border-border",
+    iconGlow: "bg-[#3b82f6]",
+    trendBadge: "bg-[#3b82f6]/10 text-[#3b82f6]",
   },
   amber: {
+    glowClass: "glass-card-glow-amber",
     iconColor: "text-[#f59e0b]",
-    headerBg: "bg-amber-50 dark:bg-transparent",
-    headerTextColor: "text-amber-900 dark:text-foreground",
-    borderColor: "border-amber-100 dark:border-border",
+    iconGlow: "bg-[#f59e0b]",
+    trendBadge: "bg-[#f59e0b]/10 text-[#f59e0b]",
   },
   green: {
+    glowClass: "glass-card-glow-green",
     iconColor: "text-[#10b981]",
-    headerBg: "bg-green-50 dark:bg-transparent",
-    headerTextColor: "text-green-900 dark:text-foreground",
-    borderColor: "border-green-100 dark:border-border",
+    iconGlow: "bg-[#10b981]",
+    trendBadge: "bg-[#10b981]/10 text-[#10b981]",
   },
   violet: {
+    glowClass: "glass-card-glow-violet",
     iconColor: "text-[#8b5cf6]",
-    headerBg: "bg-violet-50 dark:bg-transparent",
-    headerTextColor: "text-violet-900 dark:text-foreground",
-    borderColor: "border-violet-100 dark:border-border",
+    iconGlow: "bg-[#8b5cf6]",
+    trendBadge: "bg-[#8b5cf6]/10 text-[#8b5cf6]",
   },
 };
 
@@ -60,38 +65,55 @@ export function KpiStatCard({
   onClick?: () => void;
   className?: string;
 }) {
-  const t = TONE_STYLES[tone];
+  const t = TONE_MAPPING[tone];
 
   return (
     <div
       onClick={onClick}
       className={cn(
-        "group relative rounded-xl border border-border/60 bg-card overflow-hidden opacity-0 animate-slide-up transition-all duration-200",
-        "hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md",
-        onClick && "cursor-pointer",
-        active && "border-primary/50 ring-1 ring-primary/30",
+        "group relative rounded-2xl border bg-card/65 backdrop-blur-xl overflow-hidden opacity-0 animate-slide-up transition-all duration-300 hover:-translate-y-1 hover:shadow-xl",
+        t.glowClass,
+        onClick && "cursor-pointer select-none",
+        active && "ring-1 ring-primary/45 border-primary/50",
         className
       )}
       style={{ animationDelay: `${delay}ms`, animationFillMode: "forwards" }}
     >
-      {/* Colored header section */}
-      <div className={cn("flex items-center justify-between px-5 py-4 border-b", t.headerBg, t.borderColor)}>
-        <span className={cn("text-[11px] font-semibold uppercase tracking-wider", t.headerTextColor)}>
-          {label}
-        </span>
-        <Icon 
-          className={cn(
-            "h-[18px] w-[18px] shrink-0 transition-all duration-200",
-            t.iconColor,
-            "opacity-75 group-hover:opacity-100 group-hover:scale-105"
-          )} 
-          strokeWidth={1.5}
-        />
-      </div>
-      
-      <div className="p-5">
-        <div className="text-3xl font-bold tracking-tight text-foreground">{value}</div>
-        {description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
+      {/* Soft gradient accent line at top */}
+      <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
+
+      <div className="p-5 sm:p-6 flex flex-col justify-between h-full space-y-4">
+        {/* Top Header Row: Label & Sleek Floating Glowing Icon (No Square Box) */}
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">
+            {label}
+          </span>
+          <div className="relative flex items-center justify-center p-1 transition-transform duration-300 group-hover:scale-110">
+            {/* Ambient soft glow aura */}
+            <div
+              className={cn(
+                "absolute inset-0 rounded-full blur-md opacity-25 group-hover:opacity-60 transition-opacity",
+                t.iconGlow
+              )}
+            />
+            <Icon
+              className={cn("h-5 w-5 shrink-0 relative z-10 transition-colors", t.iconColor)}
+              strokeWidth={1.75}
+            />
+          </div>
+        </div>
+
+        {/* Value and Description */}
+        <div className="space-y-1">
+          <div className="text-3xl font-extrabold tracking-tight text-foreground transition-transform duration-300 group-hover:scale-[1.01] origin-left">
+            {value}
+          </div>
+          {description && (
+            <p className="text-[12px] font-medium text-muted-foreground/90 mt-1.5 leading-snug">
+              {description}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

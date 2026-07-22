@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { applyLeave } from "@/actions/leaves";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -26,10 +26,42 @@ import { Plus, Loader2 } from "lucide-react";
 import { LEAVE_TYPE_LABELS } from "@/lib/constants";
 import type { LeaveType } from "@/types/database";
 
-export function LeaveForm() {
-  const [open, setOpen] = useState(false);
+interface LeaveFormProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  initialStartDate?: string;
+  initialEndDate?: string;
+  buttonText?: string;
+}
+
+export function LeaveForm({
+  open: externalOpen,
+  onOpenChange: externalOnOpenChange,
+  initialStartDate,
+  initialEndDate,
+  buttonText = "Apply for Leave",
+}: LeaveFormProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [leaveType, setLeaveType] = useState<LeaveType>("annual");
+  const [startDate, setStartDate] = useState(initialStartDate || "");
+  const [endDate, setEndDate] = useState(initialEndDate || "");
+
+  const isControlled = externalOpen !== undefined;
+  const isOpen = isControlled ? externalOpen : internalOpen;
+
+  const handleOpenChange = (openState: boolean) => {
+    if (isControlled && externalOnOpenChange) {
+      externalOnOpenChange(openState);
+    } else {
+      setInternalOpen(openState);
+    }
+  };
+
+  useEffect(() => {
+    if (initialStartDate) setStartDate(initialStartDate);
+    if (initialEndDate) setEndDate(initialEndDate);
+  }, [initialStartDate, initialEndDate]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -43,17 +75,19 @@ export function LeaveForm() {
       toast.error(result.error);
     } else {
       toast.success("Leave request submitted");
-      setOpen(false);
+      handleOpenChange(false);
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className={cn(buttonVariants())}>
-        <Plus className="mr-2 h-4 w-4" />
-        Apply for Leave
-      </DialogTrigger>
-      <DialogContent>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      {!isControlled && (
+        <DialogTrigger className={cn(buttonVariants(), "gap-2")}>
+          <Plus className="h-4 w-4" />
+          {buttonText}
+        </DialogTrigger>
+      )}
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Apply for Leave</DialogTitle>
         </DialogHeader>
@@ -73,16 +107,32 @@ export function LeaveForm() {
               </SelectContent>
             </Select>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="start_date">Start Date</Label>
-              <Input id="start_date" name="start_date" type="date" required />
+              <Input
+                id="start_date"
+                name="start_date"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="end_date">End Date</Label>
-              <Input id="end_date" name="end_date" type="date" required />
+              <Input
+                id="end_date"
+                name="end_date"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                required
+              />
             </div>
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="reason" className="text-sm font-medium">
               Reason <span className="text-destructive">*</span>
@@ -97,6 +147,7 @@ export function LeaveForm() {
             />
             <p className="text-[11px] text-muted-foreground">Required. Your manager will see this when reviewing your request.</p>
           </div>
+
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? (
               <>
@@ -104,7 +155,7 @@ export function LeaveForm() {
                 Submitting...
               </>
             ) : (
-              "Submit Request"
+              "Submit Leave Request"
             )}
           </Button>
         </form>
