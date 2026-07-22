@@ -57,7 +57,7 @@ export function StatsCards({
   ];
 
   return (
-    <div className="grid gap-3 sm:gap-4 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+    <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 min-w-0 w-full">
       {stats.map((stat, index) => {
         const Icon = stat.icon;
         return (
@@ -66,23 +66,24 @@ export function StatsCards({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
+            className="min-w-0"
           >
             <Card className={`overflow-hidden border-0 shadow-md hover:shadow-lg transition-shadow ${stat.bgColor}`}>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-muted-foreground">
+              <CardContent className="p-4 sm:p-5 md:p-6">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
                       {stat.title}
                     </p>
-                    <div className="flex items-baseline gap-2">
-                      <p className="text-3xl font-bold">{stat.value}</p>
-                      <span className="text-xs font-semibold text-green-600 dark:text-green-400">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <p className="text-2xl sm:text-3xl font-bold truncate">{stat.value}</p>
+                      <span className="text-[10px] sm:text-xs font-semibold text-green-600 dark:text-green-400 whitespace-nowrap">
                         {stat.change}
                       </span>
                     </div>
                   </div>
-                  <div className={`flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br ${stat.color} text-white shadow-lg`}>
-                    <Icon className="h-7 w-7" />
+                  <div className={`flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-br ${stat.color} text-white shadow-lg shrink-0`}>
+                    <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
                   </div>
                 </div>
               </CardContent>

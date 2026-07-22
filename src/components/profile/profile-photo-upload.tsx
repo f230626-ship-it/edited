@@ -108,7 +108,7 @@ export function ProfilePhotoUpload({
         <Camera className="mr-2 h-4 w-4" />
         Upload Photo
       </Button>
-      <p className="text-xs text-muted-foreground">Max 5MB · JPG, PNG, WebP</p>
+      <p className="text-xs text-muted-foreground text-center px-3">Max 5MB · JPG, PNG, WebP</p>
     </div>
   );
 }

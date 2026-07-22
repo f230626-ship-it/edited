@@ -151,24 +151,24 @@ function NavLink({
       prefetch
       onClick={onClick}
       className={cn(
-        "group relative flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200",
-        "animate-slide-up opacity-0 fill-mode-[forwards] hover:scale-105 active:scale-95",
+        "group relative flex items-center gap-2.5 sm:gap-3 rounded-lg px-2.5 sm:px-3 py-2.5 sm:py-2 text-[12px] sm:text-[13px] font-medium transition-all duration-200 ease-out touch-manipulation",
+        "animate-slide-up opacity-0 fill-mode-[forwards] hover:scale-[1.02] active:scale-95",
         active
-          ? "bg-linear-to-r from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/25"
-          : "text-sidebar-foreground/70 hover:bg-linear-to-r hover:from-primary/10 hover:to-primary/5 hover:text-sidebar-foreground hover:shadow-md"
+          ? "bg-linear-to-r from-primary to-primary/90 text-primary-foreground shadow-md shadow-primary/15 ring-1 ring-primary/20"
+          : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground"
       )}
-      style={{ animationDelay: `${index * 40}ms` }}
+      style={{ animationDelay: `${index * 30}ms` }}
     >
       <Icon
         className={cn(
-          "h-5 w-5 shrink-0 transition-transform duration-200 group-hover:scale-110",
-          active && "drop-shadow-sm"
+          "h-4 w-4 sm:h-4.5 sm:w-4.5 shrink-0 transition-transform duration-200 group-hover:scale-110",
+          active ? "drop-shadow-sm opacity-100" : "opacity-80 group-hover:opacity-100 text-sidebar-foreground/60"
         )}
       />
       <div className="flex-1 min-w-0">
-        <div className="font-semibold">{item.title}</div>
+        <div className="font-semibold leading-tight">{item.title}</div>
         {item.description && (
-          <div className="text-xs opacity-75 truncate">
+          <div className="text-[10px] sm:text-xs opacity-75 truncate leading-tight mt-0.5">
             {item.description}
           </div>
         )}
@@ -179,12 +179,12 @@ function NavLink({
 
 function SectionHeader({ title, badge }: { title: string; badge?: number }) {
   return (
-    <div className="flex items-center justify-between mb-3 px-4">
-      <h3 className="text-[11px] font-bold uppercase tracking-widest text-sidebar-foreground/40">
+    <div className="flex items-center justify-between mb-2 mt-4 px-3 first:mt-1">
+      <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-sidebar-foreground/45">
         {title}
       </h3>
       {badge !== undefined && (
-        <Badge variant="secondary" className="text-[10px] h-5 px-2">
+        <Badge variant="secondary" className="text-[9px] h-4 px-1.5 bg-sidebar-accent text-sidebar-foreground/70">
           {badge}
         </Badge>
       )}
@@ -228,33 +228,33 @@ export function Sidebar({
   });
 
   return (
-    <aside className="flex h-full w-[280px] sm:w-[300px] lg:w-[288px] xl:w-[288px] 2xl:w-[320px] flex-col border-r border-sidebar-border bg-linear-to-b from-sidebar to-sidebar/95 backdrop-blur-sm">
-      {/* Header */}
-      <div className="flex h-12 sm:h-14 md:h-16 items-center justify-between border-b border-sidebar-border/50 px-3 sm:px-4 md:px-6 pt-1 shrink-0">
-        <Link href="/dashboard" className="flex items-center justify-center group flex-1">
+    <aside className="flex h-full w-full max-w-[280px] sm:max-w-[300px] md:max-w-[280px] lg:max-w-[260px] xl:max-w-[280px] 2xl:max-w-[300px] flex-col border-r border-sidebar-border bg-sidebar backdrop-blur-md z-40">
+      {/* Header / Logo */}
+      <div className="flex h-12 sm:h-13 md:h-[52px] items-center justify-between border-b border-sidebar-border/50 px-3 sm:px-4 md:px-5 shrink-0 relative touch-manipulation">
+        <Link href="/dashboard" className="flex items-center group flex-1 min-w-0">
           <BrandLogo
             lightLogoSrc="/images/mindvista-sidebar-logo-light.png"
             darkLogoSrc="/images/mindvista-sidebar-logo-dark.png"
             priority
-            className="w-36 sm:w-40 md:w-44 transition-transform group-hover:scale-[1.02]"
-            sizes="(max-width: 640px) 9rem, 11rem"
+            className="w-32 sm:w-36 max-w-full transition-transform duration-300 group-hover:scale-[1.02] origin-left"
+            sizes="(max-width: 640px) 8rem, (max-width: 768px) 9rem, 9rem"
           />
         </Link>
         <button
           onClick={onClose}
-          className="lg:hidden flex items-center justify-center h-8 w-8 rounded-lg hover:bg-sidebar-accent transition-colors shrink-0 ml-2"
+          className="lg:hidden flex items-center justify-center min-h-[44px] min-w-[44px] h-9 w-9 rounded-md hover:bg-sidebar-accent transition-colors shrink-0 ml-2 text-sidebar-foreground/60 touch-manipulation active:scale-95"
           aria-label="Close menu"
         >
-          <X className="h-4 w-4" />
+          <X className="h-5 w-5" />
         </button>
       </div>
 
-      <nav className="flex-1 space-y-4 sm:space-y-5 md:space-y-6 overflow-y-auto overflow-x-hidden p-3 sm:p-4">
+      {/* Navigation Area */}
+      <nav className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden p-2.5 sm:p-3 md:p-4 scrollbar-modern overscroll-contain">
         {/* Portal Section */}
         <div>
           <SectionHeader title="Portal" />
-          <div className="space-y-1">
-            {filteredEmployeeNav.map((item, i) => {
+          <div className="space-y-0.5 sm:space-y-1">{filteredEmployeeNav.map((item, i) => {
               const effectiveHref = item.salesHref
                 ? showSales
                   ? "/sales/command"
@@ -284,8 +284,7 @@ export function Sidebar({
         {filteredAdminNav.length > 0 && (
           <div>
             <SectionHeader title="Management" />
-            <div className="space-y-1">
-              {filteredAdminNav.map((item, i) => {
+            <div className="space-y-0.5 sm:space-y-1">{filteredAdminNav.map((item, i) => {
                 const active =
                   pathname === item.href || pathname.startsWith(item.href + "/");
                 return (
@@ -304,21 +303,21 @@ export function Sidebar({
       </nav>
 
       {/* Footer - Profile Card */}
-      <div className="border-t border-sidebar-border/50 px-2.5 sm:px-3 py-1.5 sm:py-2 shrink-0">
+      <div className="border-t border-sidebar-border/30 px-2.5 sm:px-3 py-2 sm:py-1.5 shrink-0 bg-sidebar/85 backdrop-blur-md z-10 sticky bottom-0">
         <Link
           href="/profile"
           onClick={onNavClick}
-          className="flex items-center gap-2 sm:gap-2.5 rounded-lg px-2 py-2 transition-all duration-200 hover:bg-linear-to-r hover:from-primary/10 hover:to-primary/5 group"
+          className="flex items-center gap-2 sm:gap-2.5 rounded-lg p-1.5 sm:p-1 transition-colors duration-200 hover:bg-sidebar-accent group touch-manipulation active:scale-[0.98] min-h-[44px]"
         >
           <div className="relative shrink-0">
             {profilePhotoUrl ? (
               <img
                 src={profilePhotoUrl}
                 alt={fullName ?? "Profile"}
-                className="h-8 w-8 sm:h-9 sm:w-9 rounded-full object-cover ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all"
+                className="h-10 w-10 sm:h-9 sm:w-9 rounded-full object-cover ring-1 ring-border/40 group-hover:ring-primary/40 transition-all shadow-xs"
               />
             ) : (
-              <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary/30 to-primary/10 text-primary font-bold text-[10px] sm:text-xs">
+              <div className="flex h-10 w-10 sm:h-9 sm:w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 text-primary font-bold text-xs ring-1 ring-border/40 shadow-xs">
                 {fullName
                   ?.split(" ")
                   .map((n) => n[0])
@@ -327,13 +326,13 @@ export function Sidebar({
                   .slice(0, 2) ?? "U"}
               </div>
             )}
-            <div className="absolute -bottom-0.5 -right-0.5 h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full border-2 border-sidebar bg-green-500" />
+            <div className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-sidebar bg-emerald-500 shadow-xs" />
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] sm:text-xs font-semibold truncate text-sidebar-foreground">
+          <div className="flex-1 min-w-0 pl-0.5">
+            <p className="text-[12px] sm:text-[12.5px] font-semibold tracking-tight truncate text-sidebar-foreground group-hover:text-primary transition-colors leading-tight mb-1">
               {fullName ?? "User"}
             </p>
-            <p className="text-[9px] sm:text-[10px] text-sidebar-foreground/60 truncate">
+            <p className="text-[10px] sm:text-[11px] font-medium text-sidebar-foreground/50 truncate leading-tight">
               {designation ?? "Employee"}
             </p>
           </div>

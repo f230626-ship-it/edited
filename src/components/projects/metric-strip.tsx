@@ -2,6 +2,7 @@
 
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
 
 interface MetricItem {
   label: string;
@@ -10,13 +11,13 @@ interface MetricItem {
   color: string;
 }
 
-// Semantic accent color per metric type — precise, intentional, no generic muted grey
-const COLOR_MAP: Record<string, { base: string; hover: string }> = {
-  primary: { base: "text-[#e5a158]",  hover: "group-hover:text-[#e5a158]" },
-  blue:    { base: "text-[#3b82f6]",  hover: "group-hover:text-[#3b82f6]" },
-  amber:   { base: "text-[#f59e0b]",  hover: "group-hover:text-[#f59e0b]" },
-  green:   { base: "text-[#10b981]",  hover: "group-hover:text-[#10b981]" },
-  violet:  { base: "text-[#8b5cf6]",  hover: "group-hover:text-[#8b5cf6]" },
+// Modern semantic colors
+const COLOR_MAP: Record<string, { bg: string; text: string; ring: string }> = {
+  primary: { bg: "bg-amber-500/10", text: "text-amber-500", ring: "ring-amber-500/20" },
+  blue:    { bg: "bg-blue-500/10",  text: "text-blue-500",  ring: "ring-blue-500/20" },
+  amber:   { bg: "bg-orange-500/10", text: "text-orange-500", ring: "ring-orange-500/20" },
+  green:   { bg: "bg-emerald-500/10", text: "text-emerald-500", ring: "ring-emerald-500/20" },
+  violet:  { bg: "bg-indigo-500/10", text: "text-indigo-500", ring: "ring-indigo-500/20" },
 };
 
 export function MetricStrip({
@@ -38,56 +39,60 @@ export function MetricStrip({
   };
 
   return (
-    <div className="grid gap-px rounded-xl border border-border/50 bg-border/30 p-px overflow-hidden grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 sm:gap-4 w-full">
       {metrics.map((m, i) => {
         const Icon = m.icon;
         const filter = filterMap[i];
+        const isClickable = true;
         const isActive = activeFilter === filter;
         const colors = COLOR_MAP[m.color] ?? COLOR_MAP.primary;
 
         return (
           <button
             key={m.label}
-            onClick={() => onFilterChange(filter)}
+            onClick={() => {
+              onFilterChange(isActive ? null : filter);
+            }}
             className={cn(
-              "group relative flex items-center gap-2.5 sm:gap-3.5 px-3 sm:px-5 py-3 sm:py-3.5 transition-all duration-150 min-w-0",
-              isActive ? "bg-primary/[0.05]" : "bg-card hover:bg-muted/30",
+              "group relative flex flex-col justify-center text-left w-full rounded-xl border bg-card/40 px-4 py-3.5 sm:px-4 sm:py-4 backdrop-blur-xl transition-all duration-300",
+              isClickable ? "hover:-translate-y-0.5 hover:shadow-lg cursor-pointer" : "cursor-default",
+              isActive 
+                ? "border-primary/40 shadow-[0_4px_20px_rgb(229,161,88,0.12)] ring-1 ring-primary/20 bg-primary/[0.03]" 
+                : "border-border/50 hover:border-border/80 shadow-sm hover:bg-card/60"
             )}
           >
-            {/* Active state: thin left-border indicator (Linear / Vercel style) */}
+            {/* Active Top Bar Indicator */}
             {isActive && (
-              <span className="absolute inset-y-2 left-0 w-[2px] rounded-r-full bg-[#e5a158]" />
+              <div className="absolute top-0 left-0 right-0 h-[2px] rounded-t-xl bg-gradient-to-r from-transparent via-primary to-transparent opacity-80" />
             )}
 
-            {/* Icon — no boxy container, just the icon with semantic color */}
-            <Icon
-              className={cn(
-                "h-4 w-4 sm:h-[17px] sm:w-[17px] shrink-0 transition-colors duration-150",
-                isActive
-                  ? colors.base
-                  : cn("text-muted-foreground/50", colors.hover)
-              )}
-              strokeWidth={1.65}
-            />
-
-            {/* Text */}
-            <div className="min-w-0 text-left">
-              <p
-                className={cn(
-                  "text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.08em] leading-none mb-1 sm:mb-1.5 transition-colors",
-                  isActive ? "text-primary/70" : "text-muted-foreground/60"
-                )}
-              >
-                {m.label}
-              </p>
-              <p
-                className={cn(
-                  "text-[15px] sm:text-[19px] font-bold tracking-tight leading-none tabular-nums transition-colors",
-                  isActive ? colors.base : "text-foreground"
-                )}
-              >
-                {m.value}
-              </p>
+            <div className="flex flex-col w-full gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className={cn(
+                  "flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-300",
+                  isActive ? colors.bg : "bg-muted group-hover:bg-muted/80"
+                )}>
+                  <Icon
+                    className={cn(
+                      "h-3.5 w-3.5 transition-colors duration-300",
+                      isActive ? colors.text : "text-muted-foreground group-hover:text-foreground/80"
+                    )}
+                    strokeWidth={2.5}
+                  />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+                  {m.label}
+                </span>
+              </div>
+              
+              <div className="flex items-end">
+                <span className={cn(
+                  "text-2xl font-black tabular-nums tracking-tight leading-none",
+                  isActive ? colors.text : "text-foreground"
+                )}>
+                  {m.value}
+                </span>
+              </div>
             </div>
           </button>
         );

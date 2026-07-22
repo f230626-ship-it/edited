@@ -195,75 +195,117 @@ export default async function EmployeeDetailsPage({ params }: EmployeeDetailsPag
         </div>
 
         {/* ══════════════════════════════════════════════
-            IDENTITY CARD — no banner, clean SaaS style
+            PREMIUM IDENTITY HEADER
         ══════════════════════════════════════════════ */}
-        <div className="rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden">
-          {/* Subtle top accent */}
-          <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
-
-          <div className="px-6 py-6 sm:px-8 sm:py-7">
-            <div className="flex flex-col sm:flex-row sm:items-start gap-5">
-
-              {/* Avatar */}
-              <div className="relative shrink-0">
-                {employee.profile_photo_url ? (
-                  <img
-                    src={employee.profile_photo_url}
-                    alt={employee.full_name}
-                    className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl object-cover ring-2 ring-border/60 shadow-md"
-                  />
-                ) : (
-                  <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-2xl bg-gradient-to-br from-primary/25 via-primary/15 to-primary/5 flex items-center justify-center ring-2 ring-border/60 shadow-md">
-                    <span className="text-3xl sm:text-4xl font-black text-primary">
-                      {getInitials(employee.full_name)}
-                    </span>
-                  </div>
-                )}
-                <span className={`absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-card ${currentStatus.dot} shadow`} />
+        <div className="relative rounded-3xl border border-border/50 bg-card overflow-hidden shadow-xl shadow-black/5">
+          {/* Glassmorphic Background Gradient */}
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-background pointer-events-none" />
+          <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none blur-3xl opacity-50" />
+          
+          <div className="relative px-6 py-8 sm:px-10 sm:py-10">
+            <div className="flex flex-col md:flex-row md:items-start gap-8">
+              {/* Avatar Squircle */}
+              <div className="relative shrink-0 mx-auto md:mx-0">
+                <div className="relative h-28 w-28 sm:h-32 sm:w-32 rounded-[2rem] overflow-hidden ring-4 ring-background shadow-2xl bg-card">
+                  {employee.profile_photo_url ? (
+                    <img
+                      src={employee.profile_photo_url}
+                      alt={employee.full_name}
+                      className="h-full w-full object-cover transition-transform hover:scale-105 duration-700"
+                    />
+                  ) : (
+                    <div className="h-full w-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                      <span className="text-4xl sm:text-5xl font-black text-primary">
+                        {getInitials(employee.full_name)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {/* Status Indicator */}
+                <span className={cn(
+                  "absolute -bottom-2 -right-2 h-6 w-6 rounded-xl border-4 border-card shadow-lg flex items-center justify-center",
+                  currentStatus.dot,
+                  "shadow-" + currentStatus.dot.replace('bg-', '') + "/50"
+                )}>
+                  <div className="h-2 w-2 rounded-full bg-white/90 animate-pulse" />
+                </span>
               </div>
 
-              {/* Identity */}
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
-                  <h1 className="text-2xl sm:text-[26px] font-black tracking-tight">{employee.full_name}</h1>
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${currentStatus.pill}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${currentStatus.dot}`} />
+              {/* Identity & Details */}
+              <div className="flex-1 min-w-0 text-center md:text-left">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+                  <div>
+                    <h1 className="text-3xl sm:text-4xl font-black tracking-tight mb-1 text-foreground drop-shadow-sm">
+                      {employee.full_name}
+                    </h1>
+                    <p className="text-lg text-muted-foreground font-medium tracking-wide">
+                      {employee.designation}
+                    </p>
+                  </div>
+                  
+                  {/* Actions */}
+                  <div className="flex items-center justify-center gap-2 shrink-0">
+                    <EditEmployeeDialog
+                      employee={employee}
+                      managers={managers}
+                      departments={departments}
+                    />
+                  </div>
+                </div>
+
+                {/* Tags Row */}
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 my-5">
+                  {employee.employee_code && (
+                    <Tag icon={<Hash className="h-3.5 w-3.5" />} label={`#${employee.employee_code}`} mono className="bg-muted/80 backdrop-blur-md" />
+                  )}
+                  <span className={cn(
+                    "inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold shadow-sm backdrop-blur-md",
+                    currentStatus.pill
+                  )}>
                     {currentStatus.label}
                   </span>
+                  <Tag label={currentRole.label} className={cn(currentRole.color, "bg-background/50 backdrop-blur-md font-bold rounded-xl")} />
+                  <Tag label={currentEmpType} className="bg-background/50 backdrop-blur-md font-bold rounded-xl" />
+                  <Tag icon={<WorkLocIcon className="h-3.5 w-3.5" />} label={currentWorkLoc.label} className="bg-background/50 backdrop-blur-md font-bold rounded-xl" />
                 </div>
 
-                <p className="text-base text-muted-foreground font-medium mb-3">
-                  {employee.designation}
-
-                </p>
-
-                {/* Tags row */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {employee.employee_code && (
-                    <Tag icon={<Hash className="h-3 w-3" />} label={`#${employee.employee_code}`} mono />
+                {/* Integrated Quick Info Strip */}
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-8 gap-y-4 pt-4 mt-2 border-t border-border/40">
+                  <div className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer group">
+                    <div className="h-8 w-8 rounded-lg bg-muted/50 group-hover:bg-muted flex items-center justify-center transition-colors">
+                      <Mail className="h-4 w-4" />
+                    </div>
+                    <div className="flex flex-col text-left">
+                      <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">Email</span>
+                      <span className="text-sm font-semibold">{employee.email}</span>
+                    </div>
+                  </div>
+                  
+                  {employee.phone && (
+                    <div className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer group">
+                      <div className="h-8 w-8 rounded-lg bg-muted/50 group-hover:bg-muted flex items-center justify-center transition-colors">
+                        <Phone className="h-4 w-4" />
+                      </div>
+                      <div className="flex flex-col text-left">
+                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">Phone</span>
+                        <span className="text-sm font-semibold">{employee.phone}</span>
+                      </div>
+                    </div>
                   )}
-                  <Tag label={currentEmpType} />
-                  <Tag label={currentRole.label} className={currentRole.color} />
-                  <Tag icon={<WorkLocIcon className="h-3 w-3" />} label={currentWorkLoc.label} />
+
+                  {employee.joining_date && (
+                    <div className="flex items-center gap-2 text-muted-foreground group">
+                      <div className="h-8 w-8 rounded-lg bg-muted/50 flex items-center justify-center">
+                        <Calendar className="h-4 w-4" />
+                      </div>
+                      <div className="flex flex-col text-left">
+                        <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">Joined</span>
+                        <span className="text-sm font-semibold">{fmt(employee.joining_date, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-2 shrink-0">
-                <EditEmployeeDialog
-                  employee={employee}
-                  managers={managers}
-                  departments={departments}
-                />
-              </div>
-            </div>
-
-            {/* ── Quick info strip ── */}
-            <div className="mt-5 pt-5 border-t border-border/50 grid gap-x-8 gap-y-3 grid-cols-[repeat(auto-fit,minmax(280px,1fr))]">
-              <QuickInfo icon={<Mail className="h-3.5 w-3.5" />} label="Email" value={employee.email} small />
-              <QuickInfo icon={<Phone className="h-3.5 w-3.5" />} label="Phone" value={employee.phone ?? '—'} small />
-              <QuickInfo icon={<Calendar className="h-3.5 w-3.5" />} label="Joined" value={fmt(employee.joining_date, { month: 'short', day: 'numeric', year: 'numeric' })} small />
-
             </div>
           </div>
         </div>
@@ -400,117 +442,119 @@ export default async function EmployeeDetailsPage({ params }: EmployeeDetailsPag
               const monthsUntilNext = next ? Math.max(0, stageDuration - monthsInStage) : 0;
 
               return (
-                <div className="rounded-2xl border border-border/60 bg-card overflow-hidden shadow-sm flex-1 flex flex-col">
-                  <div className="px-5 py-4 border-b border-border/40 bg-muted/20">
+                <div className="rounded-2xl border border-border/50 bg-card overflow-hidden shadow-sm flex-1 flex flex-col">
+                  <div className="px-5 py-4 border-b border-border/40 bg-gradient-to-r from-muted/50 to-transparent">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <TrendingUp className="h-5 w-5 text-primary" />
+                        <div className="h-7 w-7 rounded-md bg-primary/10 text-primary flex items-center justify-center shadow-sm">
+                          <TrendingUp className="h-4 w-4" />
+                        </div>
                         <div>
-                          <h3 className="text-sm font-semibold">Career Progression</h3>
-                          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Career Path</p>
+                          <h3 className="text-sm font-bold tracking-tight">Career Progression</h3>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-0.5">Career Path</p>
                         </div>
                       </div>
                       {probationActive && (
-                        <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-muted text-muted-foreground border border-border/50">
-                          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-bold bg-muted/80 text-foreground border border-border/40 shadow-sm backdrop-blur-md">
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--primary),0.8)]" />
                           Probation: 3 Months
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="px-5 py-5 space-y-6">
+                  <div className="px-5 py-6 space-y-8">
                     {probationActive && (
-                      <div className="rounded-xl bg-muted/30 border border-border/50 p-4">
-                        <div className="flex items-center justify-between mb-2.5">
-                          <div className="flex items-center gap-2">
-                            <Timer className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-xs font-semibold text-foreground">Probation Period</span>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Timer className="h-4 w-4" />
+                            <span className="text-[11px] font-bold uppercase tracking-wider">Probation Period</span>
                           </div>
-                          <span className="text-xs font-semibold text-foreground">{probationPct}%</span>
+                          <span className="text-xs font-black text-primary">{probationPct}%</span>
                         </div>
-                        <div className="h-1.5 rounded-full bg-border overflow-hidden mb-2.5">
-                          <div className="h-full rounded-full bg-primary transition-all duration-700" style={{ width: `${probationPct}%` }} />
+                        <div className="relative h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div className="absolute inset-y-0 left-0 bg-primary/20 w-full" />
+                          <div className="absolute inset-y-0 left-0 bg-primary transition-all duration-700 shadow-[0_0_10px_rgba(var(--primary),0.5)]" style={{ width: `${probationPct}%` }} />
                         </div>
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-muted-foreground">{probationDaysLeft} days remaining</span>
-                          <span className="text-muted-foreground">Ends {fmt(probationEnd ? probationEnd.toISOString() : null, { month: 'short', day: 'numeric' })}</span>
+                        <div className="flex items-center justify-between text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                          <span>{probationDaysLeft} days remaining</span>
+                          <span>Ends {fmt(probationEnd ? probationEnd.toISOString() : null, { month: 'short', day: 'numeric' })}</span>
                         </div>
                       </div>
                     )}
 
-                    <div className="flex items-center gap-4 p-4 rounded-xl border border-border/60 bg-card shadow-sm">
-                      <div className="h-12 w-12 rounded-lg flex items-center justify-center text-primary bg-primary/10 shrink-0">
+                    <div className="flex items-center gap-4 p-4 rounded-xl border border-border/40 bg-muted/20">
+                      <div className="h-12 w-12 rounded-xl flex items-center justify-center text-primary bg-primary/10 shadow-sm shrink-0">
                         <current.icon className="h-6 w-6" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-0.5">Current Role</p>
-                        <p className="text-base font-semibold text-foreground">{current.label}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Current Role</p>
+                        <p className="text-base font-black text-foreground truncate">{current.label}</p>
                       </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-xl font-bold tabular-nums text-foreground">{monthsEmployed}<span className="text-xs font-medium text-muted-foreground ml-0.5">mo</span></div>
-                        <p className="text-[10px] text-muted-foreground font-medium">Total Tenure</p>
+                      <div className="text-right shrink-0 pl-4 border-l border-border/30">
+                        <div className="text-2xl font-black tabular-nums text-foreground leading-none">{monthsEmployed}<span className="text-xs font-bold text-muted-foreground ml-0.5">mo</span></div>
+                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mt-1">Total Tenure</p>
                       </div>
                     </div>
 
                     {next && (
-                      <div className="space-y-2.5">
+                      <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-medium text-muted-foreground">Next: {next.label}</span>
-                          <span className="text-xs font-semibold text-foreground">{progressPct}%</span>
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Next: {next.label}</span>
+                          <span className="text-xs font-black text-primary">{progressPct}%</span>
                         </div>
-                        <div className="h-1.5 rounded-full bg-border overflow-hidden">
-                          <div className="h-full rounded-full bg-primary transition-all duration-700" style={{ width: `${progressPct}%` }} />
+                        <div className="relative h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div className="absolute inset-y-0 left-0 bg-primary/20 w-full" />
+                          <div className="absolute inset-y-0 left-0 bg-primary transition-all duration-700 shadow-[0_0_10px_rgba(var(--primary),0.5)]" style={{ width: `${progressPct}%` }} />
                         </div>
-                        <div className="flex items-center justify-between">
-                          <p className="text-[11px] text-muted-foreground">
-                            {monthsInStage} of {stageDuration} months in stage
-                          </p>
-                          <p className="text-[11px] font-medium text-foreground">
+                        <div className="flex items-center justify-between text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
+                          <span>{monthsInStage} of {stageDuration} months in stage</span>
+                          <span className="text-foreground">
                             {monthsUntilNext > 0 ? `~${monthsUntilNext}mo to promotion` : 'Eligible now'}
-                          </p>
+                          </span>
                         </div>
                       </div>
                     )}
 
-                    <div className="mt-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-6">Career Ladder</p>
-                      <div className="space-y-14">
+                    <div className="pt-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-6">Career Ladder</p>
+                      <div className="space-y-12">
                         {LADDER.map((stage, i) => {
                           const isCurrent = i === currentIdx;
                           const isPast = i < currentIdx;
                           return (
-                            <div key={stage.key} className="flex items-center gap-3.5 relative">
+                            <div key={stage.key} className="flex items-center gap-4 relative">
                               {i < LADDER.length - 1 && (
-                                <div className="absolute left-[13px] top-[32px] w-[2px] h-[calc(100%+56px)] bg-border" />
+                                <div className="absolute left-[15px] top-[34px] w-[2px] h-[calc(100%+48px)] bg-gradient-to-b from-border to-transparent" />
                               )}
                               <div className={cn(
-                                "relative z-10 h-7 w-7 rounded-full flex items-center justify-center shrink-0 text-sm transition-all duration-300 border-2",
-                                isCurrent ? "bg-primary border-primary text-primary-foreground" : isPast ? "bg-primary/10 border-primary text-primary" : "bg-card border-border text-muted-foreground"
+                                "relative z-10 h-8 w-8 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 ring-4 ring-card",
+                                isCurrent ? "bg-primary text-primary-foreground shadow-[0_0_15px_rgba(var(--primary),0.5)]" : isPast ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground border border-border/50"
                               )}>
                                 {isPast ? (
-                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                  <CheckCircle2 className="h-4 w-4" />
                                 ) : isCurrent ? (
-                                  <stage.icon className="h-3.5 w-3.5" />
+                                  <stage.icon className="h-4 w-4" />
                                 ) : (
-                                  <span className="text-[10px] font-semibold">{i + 1}</span>
+                                  <span className="text-[11px] font-bold">{i + 1}</span>
                                 )}
                               </div>
-                              <div className="flex-1 min-w-0 py-3">
+                              <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <p className={cn("text-sm font-medium", isCurrent ? "text-foreground" : isPast ? "text-foreground/80" : "text-muted-foreground")}>
+                                  <p className={cn("text-sm font-bold", isCurrent ? "text-foreground" : isPast ? "text-foreground/80" : "text-muted-foreground")}>
                                     {stage.label}
                                   </p>
                                 </div>
-                                <p className="text-[10px] text-muted-foreground mt-0.5">Level {i + 1} of {LADDER.length}</p>
+                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-0.5">Level {i + 1} of {LADDER.length}</p>
                               </div>
                               {isCurrent && (
-                                <span className="shrink-0 text-[10px] font-medium px-2 py-0.5 rounded-md bg-primary/10 text-primary">
+                                <span className="shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-md bg-primary/10 text-primary uppercase tracking-wider">
                                   Current
                                 </span>
                               )}
                               {isPast && (
-                                <span className="shrink-0 text-[10px] font-medium px-2 py-0.5 text-muted-foreground">
+                                <span className="shrink-0 text-[10px] font-bold px-2.5 py-1 text-muted-foreground uppercase tracking-wider">
                                   Completed
                                 </span>
                               )}
@@ -562,18 +606,14 @@ export default async function EmployeeDetailsPage({ params }: EmployeeDetailsPag
             {/* Compensation */}
             {totalSalary > 0 && (
               <InfoCard title="Compensation" icon={<DollarSign className="h-4 w-4 text-emerald-500" />} accent="#10b981">
-                <div className="px-5 py-5">
+                <div className="px-5 py-6">
                   {/* Big number */}
-                  <div className="flex items-start justify-between mb-5">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Monthly Total</p>
-                      <p className="text-3xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">
-                        {fmtCurrency(totalSalary)}
-                      </p>
-                    </div>
-                    <div className="h-12 w-12 rounded-xl bg-emerald-500/10 ring-1 ring-emerald-500/20 flex items-center justify-center">
-                      <Banknote className="h-5 w-5 text-emerald-500" />
-                    </div>
+                  <div className="flex flex-col items-center justify-center mb-8 relative">
+                    <div className="absolute inset-0 bg-emerald-500/10 blur-[40px] rounded-full pointer-events-none" />
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-2 relative z-10">Monthly Total</p>
+                    <p className="text-5xl sm:text-6xl font-black tracking-tighter text-foreground relative z-10 drop-shadow-sm">
+                      {fmtCurrency(totalSalary)}
+                    </p>
                   </div>
                   {/* Breakdown grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -770,13 +810,16 @@ function InfoCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`rounded-2xl border border-border/60 bg-card overflow-hidden shadow-sm flex flex-col ${className ?? ''}`}>
-      <div className="h-px w-full shrink-0" style={{ background: `linear-gradient(90deg, transparent, ${accent ?? '#e5a158'}50, transparent)` }} />
-      <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-border/40 bg-muted/20 shrink-0">
-        {icon}
-        <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
+    <div className={cn("rounded-2xl border border-border/50 bg-card overflow-hidden shadow-sm flex flex-col", className)}>
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-border/40 bg-gradient-to-r from-muted/50 to-transparent shrink-0">
+        <div className="h-7 w-7 rounded-md flex items-center justify-center shadow-sm" style={{ backgroundColor: `${accent}15`, color: accent }}>
+          {icon}
+        </div>
+        <h3 className="text-sm font-bold tracking-tight">{title}</h3>
       </div>
-      {children}
+      <div className="flex-1 flex flex-col">
+        {children}
+      </div>
     </div>
   );
 }
@@ -793,13 +836,16 @@ function InfoRow({
   mono?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3 px-5 py-3 border-b border-border/20 last:border-0 hover:bg-muted/25 transition-colors group">
-      <div className="h-6 w-6 rounded-md bg-muted/60 flex items-center justify-center shrink-0 text-muted-foreground group-hover:text-foreground/70 transition-colors">
+    <div className="flex items-center gap-3.5 px-5 py-3.5 border-b border-border/10 last:border-0 hover:bg-muted/30 transition-colors group">
+      <div className="h-6 w-6 rounded-md bg-muted flex items-center justify-center shrink-0 text-muted-foreground group-hover:text-foreground/80 transition-colors">
         {icon}
       </div>
-      <div className="flex-1 min-w-0 flex items-center justify-between gap-3">
-        <span className="text-xs text-muted-foreground whitespace-nowrap">{label}</span>
-        <span className={`text-right min-w-0 ${mono ? 'font-mono text-xs text-muted-foreground' : 'text-sm font-semibold'}`}>
+      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{label}</span>
+        <span className={cn(
+          "text-left sm:text-right min-w-0 truncate",
+          mono ? "font-mono text-xs text-muted-foreground" : "text-sm font-bold"
+        )}>
           {value}
         </span>
       </div>
@@ -863,21 +909,35 @@ function KpiCard({
   sub: string;
   color: 'amber' | 'blue' | 'violet' | 'emerald';
 }) {
-  const iconStyles = {
-    amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-    blue: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-    violet: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
-    emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  };
+  const c = {
+    amber: { bg: 'bg-amber-500/10', text: 'text-amber-500', grad: 'via-amber-500' },
+    blue: { bg: 'bg-blue-500/10', text: 'text-blue-500', grad: 'via-blue-500' },
+    violet: { bg: 'bg-violet-500/10', text: 'text-violet-500', grad: 'via-violet-500' },
+    emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-500', grad: 'via-emerald-500' },
+  }[color];
+
   return (
-    <div className="rounded-xl border border-border/60 bg-card p-4 flex items-center gap-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md">
-      <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${iconStyles[color]}`}>
-        {icon}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
-        <p className="text-lg font-bold tracking-tight leading-tight mt-0.5 text-foreground">{value}</p>
-        <p className="text-[11px] text-muted-foreground/70 mt-0.5">{sub}</p>
+    <div className="group relative flex flex-col justify-center text-left w-full rounded-2xl border border-border/50 bg-card/40 px-5 py-4 backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:border-border/80">
+      <div className={`absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl bg-gradient-to-r from-transparent ${c.grad} to-transparent opacity-80`} />
+      
+      <div className="flex flex-col w-full gap-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-300", c.bg)}>
+            <div className={cn("transition-colors duration-300", c.text)}>
+              {icon}
+            </div>
+          </div>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+            {label}
+          </span>
+        </div>
+        
+        <div className="flex flex-col">
+          <span className="text-2xl font-black tabular-nums tracking-tight leading-none text-foreground">
+            {value}
+          </span>
+          <span className="text-[11px] text-muted-foreground/70 font-medium mt-1.5">{sub}</span>
+        </div>
       </div>
     </div>
   );

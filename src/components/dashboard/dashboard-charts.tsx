@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, LineChart, Line, CartesianGrid } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, LineChart, Line, CartesianGrid, AreaChart, Area } from "recharts";
 import { Calendar, TrendingUp, Target, Activity } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -10,14 +10,15 @@ interface TooltipProps {
   payload?: any[];
 }
 
-// Move CustomTooltip outside the component to prevent re-creation on each render
 const CustomTooltip = ({ active, payload }: TooltipProps) => {
   if (active && payload && payload.length) {
     return (
-      <div className="rounded-lg border bg-background p-3 shadow-lg">
-        <p className="font-semibold">{payload[0].payload.name || payload[0].name}</p>
-        <p className="text-sm text-muted-foreground">
-          {payload[0].name}: <span className="font-medium">{payload[0].value}</span>
+      <div className="rounded-xl border border-border/40 bg-card/90 backdrop-blur-md p-3 shadow-xl">
+        <p className="font-semibold text-xs text-muted-foreground uppercase tracking-wider mb-1">
+          {payload[0].payload.name || payload[0].payload.status || payload[0].payload.range || payload[0].name}
+        </p>
+        <p className="text-lg font-bold text-foreground">
+          {payload[0].name}: <span className="text-primary">{payload[0].value}</span>
         </p>
       </div>
     );
@@ -96,10 +97,12 @@ export function DashboardCharts({
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.2 }}
       >
-        <Card className="overflow-hidden pt-0">
-          <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 py-(--card-spacing)">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Calendar className="h-5 w-5 text-primary" />
+        <Card className="glass-card-glow-blue border-none overflow-hidden pt-0 h-full">
+          <CardHeader className="border-b border-border/40 pb-3 flex flex-row items-center gap-3">
+            <div className="p-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-500">
+              <Calendar className="h-4 w-4" />
+            </div>
+            <CardTitle className="text-sm font-bold uppercase tracking-wide">
               Leave Balance Distribution
             </CardTitle>
           </CardHeader>
@@ -112,7 +115,9 @@ export function DashboardCharts({
                   cy="50%"
                   labelLine={false}
                   label={(entry) => `${entry.name}: ${entry.value}`}
-                  outerRadius={90}
+                  outerRadius={80}
+                  innerRadius={50}
+                  paddingAngle={4}
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -126,8 +131,8 @@ export function DashboardCharts({
             <div className="mt-4 flex justify-center gap-6">
               {leaveBalanceData.map((item) => (
                 <div key={item.name} className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-sm font-medium">{item.name}</span>
+                  <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                  <span className="text-xs font-semibold text-muted-foreground">{item.name}</span>
                 </div>
               ))}
             </div>
@@ -141,21 +146,23 @@ export function DashboardCharts({
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.3 }}
       >
-        <Card className="overflow-hidden pt-0">
-          <CardHeader className="bg-gradient-to-r from-green-500/5 to-green-500/10 py-(--card-spacing)">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Activity className="h-5 w-5 text-green-600" />
+        <Card className="glass-card-glow-green border-none overflow-hidden pt-0 h-full">
+          <CardHeader className="border-b border-border/40 pb-3 flex flex-row items-center gap-3">
+            <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-500">
+              <Activity className="h-4 w-4" />
+            </div>
+            <CardTitle className="text-sm font-bold uppercase tracking-wide">
               Leave Request Status
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={leaveStatusData}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="status" className="text-xs" />
-                <YAxis className="text-xs" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted/40" />
+                <XAxis dataKey="status" className="text-xs text-muted-foreground font-semibold" tickLine={false} />
+                <YAxis className="text-xs text-muted-foreground font-semibold" tickLine={false} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={45}>
                   {leaveStatusData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
@@ -166,36 +173,46 @@ export function DashboardCharts({
         </Card>
       </motion.div>
 
-      {/* Leave Trends Line Chart */}
+      {/* Leave Trends Line Chart (Rewritten to AreaChart for premium neon glow styling) */}
       {leavesByMonth.length > 0 && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.4 }}
         >
-            <Card className="overflow-hidden pt-0">
-              <CardHeader className="bg-gradient-to-r from-blue-500/5 to-blue-500/10 py-(--card-spacing)">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <TrendingUp className="h-5 w-5 text-blue-600" />
+          <Card className="glass-card-glow-violet border-none overflow-hidden pt-0 h-full">
+            <CardHeader className="border-b border-border/40 pb-3 flex flex-row items-center gap-3">
+              <div className="p-2 bg-violet-500/10 border border-violet-500/20 rounded-xl text-violet-500">
+                <TrendingUp className="h-4 w-4" />
+              </div>
+              <CardTitle className="text-sm font-bold uppercase tracking-wide">
                 Leave Request Trends
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
               <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={leavesByMonth}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="month" className="text-xs" />
-                  <YAxis className="text-xs" />
+                <AreaChart data={leavesByMonth}>
+                  <defs>
+                    <linearGradient id="colorViolet" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted/40" />
+                  <XAxis dataKey="month" className="text-xs text-muted-foreground font-semibold" tickLine={false} />
+                  <YAxis className="text-xs text-muted-foreground font-semibold" tickLine={false} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Line 
-                    type="monotone" 
-                    dataKey="count" 
-                    stroke="#3b82f6" 
+                  <Area
+                    type="monotone"
+                    dataKey="count"
+                    stroke="#8b5cf6"
                     strokeWidth={3}
-                    dot={{ fill: '#3b82f6', r: 5 }}
-                    activeDot={{ r: 7 }}
+                    fillOpacity={1}
+                    fill="url(#colorViolet)"
+                    dot={{ fill: '#8b5cf6', r: 4, strokeWidth: 1 }}
+                    activeDot={{ r: 6, strokeWidth: 0 }}
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
@@ -209,21 +226,29 @@ export function DashboardCharts({
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.5 }}
         >
-            <Card className="overflow-hidden pt-0">
-              <CardHeader className="bg-gradient-to-r from-purple-500/5 to-purple-500/10 py-(--card-spacing)">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Target className="h-5 w-5 text-purple-600" />
+          <Card className="glass-card-glow-primary border-none overflow-hidden pt-0 h-full">
+            <CardHeader className="border-b border-border/40 pb-3 flex flex-row items-center gap-3">
+              <div className="p-2 bg-primary/10 border border-primary/20 rounded-xl text-primary">
+                <Target className="h-4 w-4" />
+              </div>
+              <CardTitle className="text-sm font-bold uppercase tracking-wide">
                 Team Performance Distribution
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={performanceDistribution}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="range" className="text-xs" />
-                  <YAxis className="text-xs" />
+                  <defs>
+                    <linearGradient id="colorPrimary" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#e5a158" stopOpacity={0.9} />
+                      <stop offset="95%" stopColor="#e5a158" stopOpacity={0.3} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-muted/40" />
+                  <XAxis dataKey="range" className="text-xs text-muted-foreground font-semibold" tickLine={false} />
+                  <YAxis className="text-xs text-muted-foreground font-semibold" tickLine={false} />
                   <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="count" fill="#a855f7" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="count" fill="url(#colorPrimary)" radius={[6, 6, 0, 0]} maxBarSize={45} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>

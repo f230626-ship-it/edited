@@ -82,10 +82,10 @@ export function DashboardClient({
   return (
     <>
       {/* ── Stat Cards ── */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 min-w-0 w-full">
         <button
           onClick={() => openModal("annual")}
-          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl cursor-pointer"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl cursor-pointer touch-manipulation active:scale-[0.98] transition-transform min-w-0"
           aria-label="View annual leave details"
         >
           <StatCard
@@ -99,7 +99,7 @@ export function DashboardClient({
 
         <button
           onClick={() => openModal("sick")}
-          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl cursor-pointer"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl cursor-pointer touch-manipulation active:scale-[0.98] transition-transform min-w-0"
           aria-label="View sick leave details"
         >
           <StatCard
@@ -113,7 +113,7 @@ export function DashboardClient({
 
         <button
           onClick={() => openModal("assets")}
-          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl cursor-pointer"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl cursor-pointer touch-manipulation active:scale-[0.98] transition-transform min-w-0"
           aria-label="View assigned assets"
         >
           <StatCard
@@ -127,7 +127,7 @@ export function DashboardClient({
 
         <Link
           href="/team/hierarchy"
-          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl cursor-pointer"
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-xl cursor-pointer touch-manipulation active:scale-[0.98] transition-transform min-w-0"
           aria-label="View my team hierarchy"
         >
           <StatCard
@@ -142,10 +142,10 @@ export function DashboardClient({
 
       {/* ── Annual Leave Modal ── */}
       <Dialog open={activeModal === "annual"} onOpenChange={(open) => !open && closeModal()}>
-        <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-2rem)] sm:w-full sm:max-w-md max-h-[min(80vh,600px)] overflow-y-auto overscroll-contain">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CalendarClock className="h-4 w-4 text-primary" />
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <CalendarClock className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
               Annual Leave
             </DialogTitle>
           </DialogHeader>
@@ -156,7 +156,7 @@ export function DashboardClient({
               quota={leaveBalance?.annual_quota ?? 0}
             />
             <div>
-              <p className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide text-[11px]">
+              <p className="text-xs sm:text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">
                 Annual Leave Requests
               </p>
               {annualLeaves.length > 0 ? (
@@ -164,25 +164,25 @@ export function DashboardClient({
                   {annualLeaves.map((leave) => (
                     <div
                       key={leave.id}
-                      className="flex items-center justify-between rounded-lg border border-border/60 p-3 text-sm"
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-border/60 p-3 text-sm"
                     >
-                      <div>
-                        <p className="font-medium">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-xs sm:text-sm">
                           {formatDate(leave.start_date)} – {formatDate(leave.end_date)}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
                           {leave.days_count} day{leave.days_count !== 1 ? "s" : ""}
                           {leave.reason ? ` · ${leave.reason}` : ""}
                         </p>
                       </div>
-                      <Badge className={STATUS_COLORS[leave.status]} variant="secondary">
+                      <Badge className={`${STATUS_COLORS[leave.status]} shrink-0`} variant="secondary">
                         {LEAVE_STATUS_LABELS[leave.status]}
                       </Badge>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground py-4 text-center">
+                <p className="text-xs sm:text-sm text-muted-foreground py-4 text-center">
                   No annual leave requests yet
                 </p>
               )}
@@ -193,10 +193,10 @@ export function DashboardClient({
 
       {/* ── Sick Leave Modal ── */}
       <Dialog open={activeModal === "sick"} onOpenChange={(open) => !open && closeModal()}>
-        <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-2rem)] sm:w-full sm:max-w-md max-h-[min(80vh,600px)] overflow-y-auto overscroll-contain">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Stethoscope className="h-4 w-4 text-primary" />
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Stethoscope className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
               Sick Leave
             </DialogTitle>
           </DialogHeader>
@@ -207,7 +207,7 @@ export function DashboardClient({
               quota={leaveBalance?.sick_quota ?? 0}
             />
             <div>
-              <p className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide text-[11px]">
+              <p className="text-xs sm:text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">
                 Sick Leave Requests
               </p>
               {sickLeaves.length > 0 ? (
@@ -215,25 +215,25 @@ export function DashboardClient({
                   {sickLeaves.map((leave) => (
                     <div
                       key={leave.id}
-                      className="flex items-center justify-between rounded-lg border border-border/60 p-3 text-sm"
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-border/60 p-3 text-sm"
                     >
-                      <div>
-                        <p className="font-medium">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-xs sm:text-sm">
                           {formatDate(leave.start_date)} – {formatDate(leave.end_date)}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
                           {leave.days_count} day{leave.days_count !== 1 ? "s" : ""}
                           {leave.reason ? ` · ${leave.reason}` : ""}
                         </p>
                       </div>
-                      <Badge className={STATUS_COLORS[leave.status]} variant="secondary">
+                      <Badge className={`${STATUS_COLORS[leave.status]} shrink-0`} variant="secondary">
                         {LEAVE_STATUS_LABELS[leave.status]}
                       </Badge>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground py-4 text-center">
+                <p className="text-xs sm:text-sm text-muted-foreground py-4 text-center">
                   No sick leave requests yet
                 </p>
               )}
@@ -244,10 +244,10 @@ export function DashboardClient({
 
       {/* ── Assets Modal ── */}
       <Dialog open={activeModal === "assets"} onOpenChange={(open) => !open && closeModal()}>
-        <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-2rem)] sm:w-full sm:max-w-md max-h-[min(80vh,600px)] overflow-y-auto overscroll-contain">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <MonitorSmartphone className="h-4 w-4 text-primary" />
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <MonitorSmartphone className="h-4 w-4 sm:h-5 sm:w-5 text-primary shrink-0" />
               Assigned Assets
             </DialogTitle>
           </DialogHeader>
@@ -259,25 +259,25 @@ export function DashboardClient({
                     key={a.id}
                     className="rounded-lg border border-border/60 p-3 text-sm"
                   >
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold">{a.asset?.name ?? "—"}</p>
-                      <Badge variant="outline" className="text-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <p className="font-semibold text-xs sm:text-sm truncate">{a.asset?.name ?? "—"}</p>
+                      <Badge variant="outline" className="text-[10px] sm:text-xs shrink-0 self-start sm:self-auto">
                         {a.asset?.asset_type
                           ? ASSET_TYPE_LABELS[a.asset.asset_type] ?? a.asset.asset_type
                           : "—"}
                       </Badge>
                     </div>
-                    <div className="mt-1 flex gap-4 text-xs text-muted-foreground">
+                    <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[10px] sm:text-xs text-muted-foreground">
                       {a.asset?.serial_number && (
-                        <span>S/N: {a.asset.serial_number}</span>
+                        <span className="truncate">S/N: {a.asset.serial_number}</span>
                       )}
-                      <span>Assigned: {formatDate(a.assigned_date)}</span>
+                      <span className="whitespace-nowrap">Assigned: {formatDate(a.assigned_date)}</span>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground py-8 text-center">
+              <p className="text-xs sm:text-sm text-muted-foreground py-8 text-center">
                 No assets currently assigned
               </p>
             )}

@@ -2,41 +2,39 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/auth";
 import { HolidayForm } from "@/components/admin/holiday-form";
 import { DeleteHolidayButton } from "@/components/admin/delete-holiday-button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { EmptyState } from "@/components/ui/empty-state";
-import { formatDate } from "@/lib/utils/date";
-import { parseISO, format, isPast, isFuture, isToday, startOfMonth, isSameMonth } from "date-fns";
-import { CalendarDays, Trophy, Clock, PartyPopper, Sun } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { parseISO, format, isPast, isFuture, isToday, isSameMonth } from "date-fns";
+import { CalendarDays, Trophy, Clock, PartyPopper, Calendar } from "lucide-react";
 
 const MONTH_COLORS: Record<string, string> = {
-  January: "from-red-500/10 to-orange-500/5 border-red-500/20",
-  February: "from-pink-500/10 to-rose-500/5 border-pink-500/20",
-  March: "from-green-500/10 to-emerald-500/5 border-green-500/20",
-  April: "from-purple-500/10 to-violet-500/5 border-purple-500/20",
-  May: "from-yellow-500/10 to-amber-500/5 border-yellow-500/20",
-  June: "from-cyan-500/10 to-sky-500/5 border-cyan-500/20",
-  July: "from-blue-500/10 to-indigo-500/5 border-blue-500/20",
-  August: "from-orange-500/10 to-amber-500/5 border-orange-500/20",
-  September: "from-teal-500/10 to-cyan-500/5 border-teal-500/20",
-  October: "from-amber-500/10 to-yellow-500/5 border-amber-500/20",
-  November: "from-emerald-500/10 to-green-500/5 border-emerald-500/20",
-  December: "from-red-600/10 to-pink-500/5 border-red-600/20",
+  January: "via-red-500",
+  February: "via-pink-500",
+  March: "via-emerald-500",
+  April: "via-purple-500",
+  May: "via-amber-500",
+  June: "via-cyan-500",
+  July: "via-blue-500",
+  August: "via-orange-500",
+  September: "via-teal-500",
+  October: "via-yellow-500",
+  November: "via-emerald-500",
+  December: "via-rose-500",
 };
 
 const DOT_COLORS: Record<string, string> = {
-  January: "bg-red-500",
-  February: "bg-pink-500",
-  March: "bg-green-500",
-  April: "bg-purple-500",
-  May: "bg-yellow-500",
-  June: "bg-cyan-500",
-  July: "bg-blue-500",
-  August: "bg-orange-500",
-  September: "bg-teal-500",
-  October: "bg-amber-500",
-  November: "bg-emerald-500",
-  December: "bg-red-600",
+  January: "bg-red-500 text-white",
+  February: "bg-pink-500 text-white",
+  March: "bg-emerald-500 text-white",
+  April: "bg-purple-500 text-white",
+  May: "bg-amber-500 text-white",
+  June: "bg-cyan-500 text-white",
+  July: "bg-blue-500 text-white",
+  August: "bg-orange-500 text-white",
+  September: "bg-teal-500 text-white",
+  October: "bg-yellow-500 text-white",
+  November: "bg-emerald-500 text-white",
+  December: "bg-rose-500 text-white",
 };
 
 export default async function AdminHolidaysPage() {
@@ -62,149 +60,198 @@ export default async function AdminHolidaysPage() {
     return acc;
   }, {});
 
+  const kpis = [
+    {
+      label: "Total Holidays",
+      value: String(allHolidays.length),
+      sub: "Configured yearly",
+      icon: CalendarDays,
+      grad: "via-blue-500",
+      iconBg: "bg-blue-500/10",
+      iconText: "text-blue-500",
+    },
+    {
+      label: "Upcoming",
+      value: String(upcoming.length),
+      sub: "Future holidays",
+      icon: Trophy,
+      grad: "via-emerald-500",
+      iconBg: "bg-emerald-500/10",
+      iconText: "text-emerald-500",
+    },
+    {
+      label: "This Month",
+      value: String(thisMonth.length),
+      sub: "Current period",
+      icon: PartyPopper,
+      grad: "via-amber-500",
+      iconBg: "bg-amber-500/10",
+      iconText: "text-amber-500",
+    },
+    {
+      label: "Past",
+      value: String(past.length),
+      sub: "Completed holidays",
+      icon: Clock,
+      grad: "via-slate-500",
+      iconBg: "bg-slate-500/10",
+      iconText: "text-slate-500",
+    },
+  ];
+
   return (
-    <div className="space-y-4 sm:space-y-5 md:space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Holiday Calendar</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Manage company holidays excluded from leave calculations
-          </p>
+    <div className="space-y-8">
+      {/* Hero Header */}
+      <div className="relative rounded-3xl border border-border/50 bg-card overflow-hidden shadow-xl shadow-black/5">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-amber-500/5 pointer-events-none" />
+        <div className="relative px-5 py-6 sm:px-8 sm:py-8 md:px-10 md:py-10">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center justify-center shrink-0">
+                <Calendar className="h-10 w-10 text-primary drop-shadow-sm" strokeWidth={1.5} />
+              </div>
+              <div>
+                <h1 className="text-3xl sm:text-4xl font-black tracking-tight">Holiday Calendar</h1>
+                <p className="text-muted-foreground text-sm font-medium mt-0.5">
+                  Configure company-wide holidays and observances excluded from leave quotas
+                </p>
+              </div>
+            </div>
+
+            <HolidayForm />
+          </div>
         </div>
-        <HolidayForm />
       </div>
 
-      {/* Stats */}
-      <div className="grid gap-2 sm:gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-        <Card className="pt-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-500/10 to-blue-500/5 py-2 sm:py-3 px-3 sm:px-4">
-            <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium text-blue-700 dark:text-blue-400">
-              <CalendarDays className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              Total Holidays
+      {/* KPI Cards Strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {kpis.map((kpi) => {
+          const Icon = kpi.icon;
+          return (
+            <div
+              key={kpi.label}
+              className="group relative flex flex-col justify-center w-full rounded-2xl border border-border/50 bg-card/40 px-5 py-4 backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:border-border/80"
+            >
+              <div
+                className={cn(
+                  "absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl bg-gradient-to-r from-transparent to-transparent opacity-80",
+                  kpi.grad
+                )}
+              />
+              <div className="flex flex-col gap-2.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex items-center justify-center shrink-0">
+                    <Icon className={cn("h-5 w-5 drop-shadow-sm", kpi.iconText)} strokeWidth={2} />
+                  </div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+                    {kpi.label}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-2xl font-black tabular-nums tracking-tight leading-none">
+                    {kpi.value}
+                  </span>
+                  <p className="text-[11px] text-muted-foreground/70 font-medium mt-1.5">{kpi.sub}</p>
+                </div>
+              </div>
             </div>
-          </div>
-          <CardContent className="pt-2 sm:pt-3 pb-3 sm:pb-4">
-            <p className="text-2xl sm:text-3xl font-bold">{allHolidays.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="pt-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-emerald-500/10 to-emerald-500/5 py-2 sm:py-3 px-3 sm:px-4">
-            <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium text-emerald-700 dark:text-emerald-400">
-              <Trophy className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              Upcoming
-            </div>
-          </div>
-          <CardContent className="pt-2 sm:pt-3 pb-3 sm:pb-4">
-            <p className="text-2xl sm:text-3xl font-bold">{upcoming.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="pt-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-amber-500/10 to-amber-500/5 py-2 sm:py-3 px-3 sm:px-4">
-            <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium text-amber-700 dark:text-amber-400">
-              <PartyPopper className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              This Month
-            </div>
-          </div>
-          <CardContent className="pt-2 sm:pt-3 pb-3 sm:pb-4">
-            <p className="text-2xl sm:text-3xl font-bold">{thisMonth.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="pt-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-gray-500/10 to-gray-500/5 py-2 sm:py-3 px-3 sm:px-4">
-            <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-400">
-              <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              Past
-            </div>
-          </div>
-          <CardContent className="pt-2 sm:pt-3 pb-3 sm:pb-4">
-            <p className="text-2xl sm:text-3xl font-bold">{past.length}</p>
-          </CardContent>
-        </Card>
+          );
+        })}
       </div>
 
       {/* Holiday Cards by Month */}
       {allHolidays.length === 0 ? (
-        <EmptyState
-          icon={CalendarDays}
-          title="No holidays configured"
-          description="Add company holidays to exclude them from leave calculations"
-          action={<HolidayForm />}
-        />
+        <div className="rounded-2xl border border-border/50 bg-card/40 backdrop-blur-xl p-16 text-center shadow-sm">
+          <div className="flex flex-col items-center gap-4 max-w-sm mx-auto">
+            <div className="flex items-center justify-center text-muted-foreground">
+              <CalendarDays className="h-12 w-12 opacity-50" strokeWidth={1.5} />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold">No Holidays Configured</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Add company holidays to exclude them automatically from employee leave calculations.
+              </p>
+            </div>
+            <HolidayForm />
+          </div>
+        </div>
       ) : (
-        <div className="space-y-6 sm:space-y-8">
+        <div className="space-y-8">
           {Object.entries(grouped).map(([month, items]) => {
             const monthName = month.split(" ")[0];
-            const colorClass = MONTH_COLORS[monthName] ?? "from-gray-500/10 to-gray-500/5 border-gray-500/20";
-            const dotColor = DOT_COLORS[monthName] ?? "bg-gray-500";
+            const gradClass = MONTH_COLORS[monthName] ?? "via-primary";
+            const badgeColor = DOT_COLORS[monthName] ?? "bg-primary text-primary-foreground";
 
             return (
-              <div key={month}>
-                <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                  <div className={`h-2 sm:h-2.5 w-2 sm:w-2.5 rounded-full ${dotColor}`} />
-                  <h2 className="text-base sm:text-lg font-bold">{month}</h2>
-                  <Badge variant="secondary" className="text-[10px] sm:text-xs font-mono">
+              <div key={month} className="space-y-4">
+                <div className="flex items-center gap-2.5 px-1">
+                  <div className={cn("h-2.5 w-2.5 rounded-full", badgeColor.split(" ")[0])} />
+                  <h2 className="text-base font-bold tracking-tight">{month}</h2>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
                     {items.length} {items.length === 1 ? "holiday" : "holidays"}
-                  </Badge>
+                  </span>
                 </div>
-                <div className="grid gap-2 sm:gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(min(280px,100%),1fr))]">
+
+                <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
                   {items.map((holiday) => {
                     const holidayDate = parseISO(holiday.date);
                     const isPastDate = isPast(holidayDate) && !isToday(holidayDate);
                     const isTodayDate = isToday(holidayDate);
 
                     return (
-                      <Card
+                      <div
                         key={holiday.id}
-                        className={`group relative overflow-hidden bg-gradient-to-br ${colorClass} transition-all hover:shadow-md hover:-translate-y-0.5 ${isPastDate ? "opacity-60" : ""}`}
+                        className={cn(
+                          "group relative flex items-center justify-between rounded-2xl border border-border/50 bg-card/50 backdrop-blur-xl p-4 shadow-sm hover:shadow-md hover:border-border/80 transition-all duration-300",
+                          isPastDate && "opacity-60"
+                        )}
                       >
-                        {/* Top accent line */}
-                        <div className={`h-0.5 w-full ${dotColor}`} />
+                        <div className={cn(
+                          "absolute top-0 left-0 right-0 h-[2px] rounded-t-2xl bg-gradient-to-r from-transparent to-transparent opacity-70",
+                          gradClass
+                        )} />
 
-                        <CardContent className="p-3 sm:p-4">
-                          <div className="flex items-start justify-between gap-2 sm:gap-3">
-                            {/* Left: Date badge */}
-                            <div className="flex items-center gap-2 sm:gap-3">
-                              <div className={`flex flex-col items-center justify-center rounded-xl ${dotColor} text-white min-w-[44px] sm:min-w-[52px] h-[48px] sm:h-[56px] shadow-sm`}>
-                                <span className="text-[9px] sm:text-[10px] font-bold uppercase leading-none tracking-wider opacity-90">
-                                  {format(holidayDate, "MMM")}
-                                </span>
-                                <span className="text-base sm:text-lg font-bold leading-none mt-0.5">
-                                  {format(holidayDate, "d")}
-                                </span>
-                              </div>
-                              <div className="min-w-0">
-                                <h3 className="font-semibold text-xs sm:text-sm leading-tight">
-                                  {holiday.name}
-                                </h3>
-                                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 line-clamp-2">
-                                  {holiday.description || "No description"}
-                                </p>
-                                <div className="flex items-center gap-1.5 sm:gap-2 mt-1.5 sm:mt-2">
-                                  <span className="text-[10px] sm:text-[11px] text-muted-foreground font-mono">
-                                    {format(holidayDate, "EEEE")}
-                                  </span>
-                                  {isTodayDate && (
-                                    <Badge className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0 h-3.5 sm:h-4 bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">
-                                      Today
-                                    </Badge>
-                                  )}
-                                  {isPastDate && (
-                                    <Badge variant="secondary" className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0 h-3.5 sm:h-4">
-                                      Past
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          {/* Date box */}
+                          <div className={cn("flex flex-col items-center justify-center rounded-xl min-w-[50px] h-[54px] shadow-sm shrink-0", badgeColor)}>
+                            <span className="text-[10px] font-black uppercase leading-none tracking-widest opacity-90">
+                              {format(holidayDate, "MMM")}
+                            </span>
+                            <span className="text-xl font-black leading-none mt-1">
+                              {format(holidayDate, "d")}
+                            </span>
+                          </div>
 
-                            {/* Right: Delete */}
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                              <DeleteHolidayButton holidayId={holiday.id} />
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-sm leading-tight text-foreground truncate">
+                              {holiday.name}
+                            </h3>
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                              {holiday.description || "Company holiday"}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className="text-[11px] font-semibold text-muted-foreground/80">
+                                {format(holidayDate, "EEEE")}
+                              </span>
+                              {isTodayDate && (
+                                <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-bold">
+                                  Today
+                                </Badge>
+                              )}
+                              {isPastDate && (
+                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-semibold">
+                                  Past
+                                </Badge>
+                              )}
                             </div>
                           </div>
-                        </CardContent>
-                      </Card>
+                        </div>
+
+                        {/* Delete Action */}
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
+                          <DeleteHolidayButton holidayId={holiday.id} />
+                        </div>
+                      </div>
                     );
                   })}
                 </div>

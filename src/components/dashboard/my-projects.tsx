@@ -81,24 +81,27 @@ export function MyProjects({ projects }: MyProjectsProps) {
 
   if (projects.length === 0) {
     return (
-      <Card className="pm-glass-card">
+      <Card className="glass-card-glow-violet border-none">
         <CardContent className="py-12 text-center">
-          <Briefcase className="h-10 w-10 mx-auto mb-3 text-muted-foreground opacity-30" />
-          <p className="text-sm text-muted-foreground">No projects assigned to you yet.</p>
+          <Briefcase className="h-10 w-10 mx-auto mb-3 text-violet-400 opacity-40" />
+          <p className="text-sm font-medium text-muted-foreground">No projects assigned to you yet.</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="pm-glass-card">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-bold uppercase tracking-wide flex items-center gap-2">
-          <Briefcase className="h-4 w-4 text-primary" />
+    <Card className="glass-card-glow-violet border-none">
+      <CardHeader className="pb-3 border-b border-border/30 mb-2">
+        <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-2 text-foreground">
+          <div className="relative flex items-center justify-center p-1">
+            <div className="absolute inset-0 rounded-full blur-md bg-violet-500 opacity-30" />
+            <Briefcase className="h-4 w-4 text-violet-400 relative z-10" />
+          </div>
           My Projects ({projects.length})
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 pt-2">
         {projects.map((project) => {
           const isEditing = editingId === project.id;
           const currentProgress = isEditing
@@ -108,7 +111,7 @@ export function MyProjects({ projects }: MyProjectsProps) {
           return (
             <div
               key={project.id}
-              className="rounded-lg border border-border/60 p-4 hover:bg-muted/30 transition-colors"
+              className="rounded-xl border border-border/40 bg-card/40 backdrop-blur-md p-4 hover:border-violet-500/30 hover:bg-card/70 transition-all duration-300 shadow-sm"
             >
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="min-w-0">

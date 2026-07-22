@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -120,16 +121,38 @@ const getPriorityBadge = (priority?: string) => {
 };
 
 const CHART_COLORS = [
-  "#e5a158", // Brand orange (primary)
-  "#6366f1", // Indigo
-  "#10b981", // Emerald
-  "#f43f5e", // Rose
-  "#8b5cf6", // Violet
-  "#06b6d4", // Cyan
-  "#f59e0b", // Amber
-  "#14b8a6", // Teal
-  "#64748b", // Slate
+  "#e5a158", // Brand Gold
+  "#818cf8", // Muted Indigo
+  "#34d399", // Mint Green
+  "#f472b6", // Pastel Rose
+  "#a78bfa", // Soft Lavender
+  "#22d3ee", // Sky Cyan
+  "#fb923c", // Warm Peach
+  "#2dd4bf", // Pale Teal
+  "#94a3b8", // Cool Gray
 ];
+
+const ChartTooltip = ({ active, payload, label, prefix = "", suffix = "" }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-slate-950/95 border border-slate-800/80 backdrop-blur-md rounded-xl p-3 shadow-2xl space-y-1">
+        {label && (
+          <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
+            {label}
+          </p>
+        )}
+        <div className="flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: payload[0].color || payload[0].fill }} />
+          <span className="text-xs font-semibold text-slate-400">{payload[0].name}:</span>
+          <span className="text-xs font-black text-white">
+            {prefix}{Number(payload[0].value).toLocaleString()}{suffix}
+          </span>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
 
 interface ProjectsClientProps {
   initialProjects: (Project & {
@@ -716,307 +739,243 @@ export default function ProjectsClient({
           />
 
           {/* Charts grid */}
-          <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 lg:grid-cols-[repeat(auto-fit,minmax(min(380px,100%),1fr))]">
+          <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 mt-6">
             {/* ── Donut: Project Status Breakdown ── */}
-            <Card className="pm-chart-card">
-              <CardHeader className="pb-1">
-                <CardTitle className="text-sm sm:text-base font-bold">Project Status Breakdown</CardTitle>
-                <CardDescription className="text-xs sm:text-sm">Status share of all projects</CardDescription>
+            <Card className="border-border/40 bg-card/40 backdrop-blur-xl shadow-sm rounded-2xl overflow-hidden flex flex-col">
+              <CardHeader className="pb-0 pt-6 px-6">
+                <CardTitle className="text-sm font-bold tracking-tight text-foreground">Project Status Breakdown</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground mt-1">Status share of all active and completed projects</CardDescription>
               </CardHeader>
-              <CardContent className="min-h-[280px] sm:min-h-[320px] pt-0">
+              <CardContent className="flex-1 flex flex-col sm:flex-row items-center justify-center p-6 gap-8">
                 {statusChartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
-                      <Pie
-                        data={statusChartData}
-                        cx="50%"
-                        cy="45%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={2}
-                        dataKey="value"
-                        stroke="none"
-                        animationBegin={0}
-                        animationDuration={800}
-                        animationEasing="ease-out"
-                      >
-                        {statusChartData.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={CHART_COLORS[index % CHART_COLORS.length]}
-                            style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.15))" }}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "rgba(15,23,42,0.95)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                          borderRadius: "10px",
-                          color: "#e2e8f0",
-                          fontSize: "11px",
-                          padding: "8px 12px",
-                          backdropFilter: "blur(8px)",
-                          boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
-                        }}
-                        itemStyle={{ color: "#e2e8f0" }}
-                        formatter={(value, name) => [
-                          <span key="v" style={{ color: "#e5a158", fontWeight: 700 }}>
-                            {`${value} projects`}
-                          </span>,
-                          name,
-                        ]}
-                      />
-                      {/* Center label */}
-                      <text x="50%" y="42%" textAnchor="middle" dominantBaseline="central" className="fill-foreground" fontSize="24" fontWeight="800">
-                        {filteredProjectsByTime.length}
-                      </text>
-                      <text x="50%" y="52%" textAnchor="middle" dominantBaseline="central" className="fill-muted-foreground" fontSize="10" fontWeight="500">
-                        Total Projects
-                      </text>
-                      <Legend
-                        verticalAlign="bottom"
-                        height={48}
-                        iconType="circle"
-                        iconSize={8}
-                        formatter={(value) => <span className="text-xs text-muted-foreground ml-1">{value}</span>}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <>
+                    <div className="relative w-48 h-48 shrink-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={statusChartData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={65}
+                            outerRadius={85}
+                            paddingAngle={2}
+                            dataKey="value"
+                            stroke="transparent"
+                            animationBegin={0}
+                            animationDuration={800}
+                            animationEasing="ease-out"
+                          >
+                            {statusChartData.map((entry, index) => (
+                              <Cell
+                                key={`cell-${index}`}
+                                fill={CHART_COLORS[index % CHART_COLORS.length]}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip content={<ChartTooltip suffix=" projects" />} cursor={{ fill: 'transparent' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      {/* Center Label */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-3xl font-black tabular-nums text-foreground">{filteredProjectsByTime.length}</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-0.5">Total</span>
+                      </div>
+                    </div>
+                    {/* Legend */}
+                    <div className="flex flex-col gap-3 w-full sm:w-auto">
+                      {statusChartData.map((entry, index) => (
+                        <div key={entry.name} className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-2.5">
+                            <span className="h-3 w-3 rounded-full shadow-sm" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                            <span className="text-sm font-medium text-muted-foreground">{entry.name}</span>
+                          </div>
+                          <span className="text-sm font-bold tabular-nums text-foreground">{entry.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
                 ) : (
-                  <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No project data available</div>
+                  <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">No project data available</div>
                 )}
               </CardContent>
             </Card>
 
             {/* ── Area: Monthly Revenue Timeline ── */}
-            <Card className="pm-chart-card">
-              <CardHeader className="pb-1">
-                <CardTitle className="text-base font-bold">Monthly Revenue Timeline</CardTitle>
-                <CardDescription>Revenue incoming grouped by project start date</CardDescription>
+            <Card className="border-border/40 bg-card/40 backdrop-blur-xl shadow-sm rounded-2xl flex flex-col overflow-hidden">
+              <CardHeader className="pb-0 pt-6 px-6">
+                <CardTitle className="text-sm font-bold tracking-tight text-foreground">Monthly Revenue Timeline</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground mt-1">Revenue incoming grouped by project start date</CardDescription>
               </CardHeader>
-              <CardContent className="min-h-[320px] pt-0">
+              <CardContent className="flex-1 pt-4 pb-2 px-2">
                 {revenueMetrics.monthData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={revenueMetrics.monthData} margin={{ top: 15, right: 15, left: -10, bottom: 0 }}>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <AreaChart data={revenueMetrics.monthData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="gradRevenue" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#e5a158" stopOpacity={0.35} />
-                          <stop offset="100%" stopColor="#e5a158" stopOpacity={0.02} />
+                          <stop offset="5%" stopColor="#e5a158" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#e5a158" stopOpacity={0.0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="rgba(148,163,184,0.08)"
+                        strokeDasharray="4 4"
+                        stroke="currentColor"
+                        className="text-muted-foreground/10"
                         vertical={false}
                       />
                       <XAxis
                         dataKey="name"
                         axisLine={false}
                         tickLine={false}
-                        tick={{ fill: "#64748b", fontSize: 11, fontWeight: 500 }}
-                        dy={8}
+                        tick={{ fill: "currentColor", fontSize: 11, fontWeight: 500 }}
+                        className="text-muted-foreground"
+                        dy={10}
                       />
                       <YAxis
                         axisLine={false}
                         tickLine={false}
-                        tick={{ fill: "#64748b", fontSize: 11, fontWeight: 500 }}
-                        tickFormatter={(val) => {
-                          const n = Number(val);
-                          if (n >= 1000) return `$${(n / 1000).toFixed(0)}k`;
-                          return `$${n}`;
-                        }}
-                        width={48}
+                        tick={{ fill: "currentColor", fontSize: 11, fontWeight: 500 }}
+                        className="text-muted-foreground"
+                        tickFormatter={(value) => `$${value >= 1000 ? (value / 1000) + 'k' : value}`}
                       />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "rgba(15,23,42,0.95)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                          borderRadius: "10px",
-                          color: "#e2e8f0",
-                          fontSize: "13px",
-                          padding: "10px 14px",
-                          backdropFilter: "blur(8px)",
-                          boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
-                        }}
-                        labelStyle={{ color: "#94a3b8", fontWeight: 600, marginBottom: 4 }}
-                        itemStyle={{ color: "#e2e8f0" }}
-                        formatter={(value) => [
-                          <span key="v" style={{ color: "#e5a158", fontWeight: 700 }}>
-                            ${Number(value).toLocaleString()}
-                          </span>,
-                          "Revenue",
-                        ]}
-                      />
+                      <Tooltip content={<ChartTooltip prefix="$" />} cursor={{ stroke: 'currentColor', strokeWidth: 1, strokeDasharray: '4 4', className: 'text-muted-foreground/30' }} />
                       <Area
                         type="monotone"
                         dataKey="value"
+                        name="Revenue"
                         stroke="#e5a158"
-                        strokeWidth={2.5}
+                        strokeWidth={2}
                         fill="url(#gradRevenue)"
-                        dot={false}
+                        dot={{ r: 0 }}
                         activeDot={{
                           r: 5,
                           fill: "#e5a158",
-                          stroke: "#0f172a",
+                          stroke: "var(--background)",
                           strokeWidth: 2,
-                          style: { filter: "drop-shadow(0 0 6px rgba(229,161,88,0.5))" },
                         }}
-                        animationDuration={1000}
+                        animationDuration={800}
                         animationEasing="ease-out"
                       />
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No start date timeline available</div>
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No start date timeline available</div>
                 )}
               </CardContent>
             </Card>
           </div>
 
-          <div className="grid gap-4 sm:gap-6 grid-cols-[repeat(auto-fit,minmax(min(420px,100%),1fr))]">
+          <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
             {/* ── Bar: Revenue by Lead Source ── */}
-            <Card className="pm-chart-card">
-              <CardHeader className="pb-1">
-                <CardTitle className="text-base font-bold">Revenue by Lead Source</CardTitle>
-                <CardDescription>Financial volume generated by origin source</CardDescription>
+            <Card className="border-border/40 bg-card/40 backdrop-blur-xl shadow-sm rounded-2xl flex flex-col overflow-hidden">
+              <CardHeader className="pb-0 pt-6 px-6">
+                <CardTitle className="text-sm font-bold tracking-tight text-foreground">Revenue by Lead Source</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground mt-1">Financial volume generated by origin source</CardDescription>
               </CardHeader>
-              <CardContent className="min-h-[320px] pt-0">
+              <CardContent className="flex-1 pt-4 pb-2 px-2">
                 {revenueMetrics.sourceData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={revenueMetrics.sourceData} margin={{ top: 15, right: 15, left: -10, bottom: 0 }}>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={revenueMetrics.sourceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <defs>
-                        {revenueMetrics.sourceData.map((_, index) => (
-                          <linearGradient key={`barGrad${index}`} id={`barGrad${index}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={CHART_COLORS[(index + 1) % CHART_COLORS.length]} stopOpacity={1} />
-                            <stop offset="100%" stopColor={CHART_COLORS[(index + 1) % CHART_COLORS.length]} stopOpacity={0.6} />
-                          </linearGradient>
-                        ))}
+                        <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.9} />
+                          <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.3} />
+                        </linearGradient>
                       </defs>
                       <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="rgba(148,163,184,0.08)"
+                        strokeDasharray="4 4"
+                        stroke="currentColor"
+                        className="text-muted-foreground/10"
                         vertical={false}
                       />
                       <XAxis
                         dataKey="name"
                         axisLine={false}
                         tickLine={false}
-                        tick={{ fill: "#64748b", fontSize: 11, fontWeight: 500 }}
-                        dy={8}
+                        tick={{ fill: "currentColor", fontSize: 11, fontWeight: 500 }}
+                        className="text-muted-foreground"
+                        dy={10}
                       />
                       <YAxis
                         axisLine={false}
                         tickLine={false}
-                        tick={{ fill: "#64748b", fontSize: 11, fontWeight: 500 }}
-                        tickFormatter={(val) => {
-                          const n = Number(val);
-                          if (n >= 1000) return `$${(n / 1000).toFixed(0)}k`;
-                          return `$${n}`;
-                        }}
-                        width={48}
+                        tick={{ fill: "currentColor", fontSize: 11, fontWeight: 500 }}
+                        className="text-muted-foreground"
+                        tickFormatter={(value) => `$${value >= 1000 ? (value / 1000) + 'k' : value}`}
                       />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "rgba(15,23,42,0.95)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                          borderRadius: "10px",
-                          color: "#e2e8f0",
-                          fontSize: "13px",
-                          padding: "10px 14px",
-                          backdropFilter: "blur(8px)",
-                          boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
-                        }}
-                        labelStyle={{ color: "#94a3b8", fontWeight: 600, marginBottom: 4 }}
-                        itemStyle={{ color: "#e2e8f0" }}
-                        cursor={{ fill: "rgba(148,163,184,0.06)" }}
-                        formatter={(value) => [
-                          <span key="v" style={{ color: "#e5a158", fontWeight: 700 }}>
-                            ${Number(value).toLocaleString()}
-                          </span>,
-                          "Revenue",
-                        ]}
-                      />
+                      <Tooltip content={<ChartTooltip prefix="$" />} cursor={{ fill: 'currentColor', className: 'text-muted-foreground/5' }} />
                       <Bar
                         dataKey="value"
-                        radius={[6, 6, 0, 0]}
+                        name="Revenue"
+                        barSize={24}
+                        fill="url(#barGrad)"
+                        radius={[4, 4, 0, 0]}
                         animationDuration={800}
                         animationEasing="ease-out"
-                      >
-                        {revenueMetrics.sourceData.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={`url(#barGrad${index})`}
-                            style={{ filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.15))" }}
-                          />
-                        ))}
-                      </Bar>
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No lead source financial data</div>
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">No lead source financial data</div>
                 )}
               </CardContent>
             </Card>
 
+
             {/* ── Resource Allocation ── */}
-            <Card className="pm-chart-card">
-              <CardHeader className="pb-1">
+            <Card className="border-border/40 bg-card/40 backdrop-blur-xl shadow-sm rounded-2xl flex flex-col overflow-hidden">
+              <CardHeader className="pb-4 pt-6 px-6 border-b border-border/30">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-base font-bold">Resource Allocation</CardTitle>
-                    <CardDescription>Assigned workload vs remaining capacity</CardDescription>
+                    <CardTitle className="text-sm font-bold tracking-tight text-foreground">Resource Allocation</CardTitle>
+                    <CardDescription className="text-xs text-muted-foreground mt-1">Assigned workload vs remaining capacity</CardDescription>
                   </div>
-                  <div className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5">
-                    <span className="text-lg font-bold text-primary">{resourceMetrics.assignedCount}</span>
-                    <span className="text-xs font-medium text-muted-foreground">/ {resourceMetrics.totalResources} staff</span>
+                  <div className="flex items-center gap-2 rounded-full bg-primary/10 border border-primary/20 px-3 py-1">
+                    <span className="text-sm font-bold text-primary">{resourceMetrics.assignedCount}</span>
+                    <span className="text-xs font-semibold text-primary/70">/ {resourceMetrics.totalResources} Active</span>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="min-h-[300px] overflow-y-auto pr-2 pt-1">
-                <div className="space-y-3.5">
-                  {resourceMetrics.workloads.slice(0, 8).map((item) => {
+              <CardContent className="flex-1 p-0 overflow-y-auto max-h-[260px]">
+                <div className="flex flex-col">
+                  {resourceMetrics.workloads.slice(0, 8).map((item, i) => {
                     const pct = Math.min(item.workload, 100);
-                    let barColor = "#10b981";
-                    let bgColor = "rgba(16,185,129,0.12)";
-                    let textColor = "text-emerald-500";
+                    let statusColor = "bg-emerald-500";
+                    let textColor = "text-emerald-600 dark:text-emerald-400";
                     if (item.workload > 100) {
-                      barColor = "#ef4444";
-                      bgColor = "rgba(239,68,68,0.12)";
-                      textColor = "text-red-500";
-                    } else if (item.workload >= 70) {
-                      barColor = "#f59e0b";
-                      bgColor = "rgba(245,158,11,0.12)";
-                      textColor = "text-amber-500";
+                      statusColor = "bg-red-500";
+                      textColor = "text-red-600 dark:text-red-400";
+                    } else if (item.workload >= 80) {
+                      statusColor = "bg-amber-500";
+                      textColor = "text-amber-600 dark:text-amber-400";
                     }
 
                     return (
-                      <div key={item.employee.id} className="group">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-2">
-                            <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground">
-                              {item.employee.full_name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
-                            </div>
-                            <span className="text-sm font-medium text-foreground">{item.employee.full_name}</span>
+                      <div key={item.employee.id} className={cn(
+                        "flex items-center justify-between p-4 transition-colors hover:bg-muted/30",
+                        i !== 0 && "border-t border-border/30"
+                      )}>
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10 flex items-center justify-center text-[11px] font-bold text-primary shadow-sm">
+                            {item.employee.full_name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-xs font-bold tabular-nums ${textColor}`}>
-                              {item.workload}%
-                            </span>
-                            <span className="text-[10px] font-medium text-muted-foreground rounded-md bg-muted/60 px-1.5 py-0.5">
-                              {item.projectsCount} {item.projectsCount === 1 ? "proj" : "projs"}
+                          <div className="flex flex-col">
+                            <span className="text-sm font-semibold text-foreground">{item.employee.full_name}</span>
+                            <span className="text-[11px] font-medium text-muted-foreground">
+                              {item.projectsCount} active {item.projectsCount === 1 ? "project" : "projects"}
                             </span>
                           </div>
                         </div>
-                        <div className="h-2 w-full rounded-full bg-muted/40 overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all duration-700 ease-out"
-                            style={{
-                              width: `${pct}%`,
-                              background: `linear-gradient(90deg, ${barColor}, ${barColor}dd)`,
-                              boxShadow: `0 0 8px ${barColor}40`,
-                            }}
-                          />
+                        <div className="flex items-center gap-4">
+                          {/* Sleek track bar */}
+                          <div className="hidden sm:block w-24 h-1.5 rounded-full bg-muted overflow-hidden">
+                            <div
+                              className={cn("h-full rounded-full transition-all duration-1000 ease-out", statusColor)}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className={cn("text-sm font-bold tabular-nums w-12 text-right", textColor)}>
+                            {item.workload}%
+                          </span>
                         </div>
                       </div>
                     );
@@ -1028,36 +987,36 @@ export default function ProjectsClient({
 
           {/* BD Performance Dashboard Table */}
           {bdPerformanceData.length > 0 && (
-            <Card className="pm-chart-card overflow-hidden">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-bold">Business Development Performance</CardTitle>
-                <CardDescription>Metrics on deals closed, revenue generated, and active pipelines</CardDescription>
+            <Card className="border-border/40 bg-card/40 backdrop-blur-xl shadow-sm rounded-2xl overflow-hidden mt-6">
+              <CardHeader className="pb-4 pt-6 px-6 border-b border-border/30">
+                <CardTitle className="text-sm font-bold tracking-tight text-foreground">Business Development Performance</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground mt-1">Metrics on deals closed, revenue generated, and active pipelines</CardDescription>
               </CardHeader>
               <div className="overflow-x-auto">
                 <CardContent className="p-0">
-                  <Table className="pm-table" style={{ tableLayout: 'fixed' }}>
+                  <Table>
                     <TableHeader>
-                      <TableRow className="hover:bg-transparent border-b border-border/50">
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-2.5 px-3 w-[30%]">BD Representative</TableHead>
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-2.5 px-3 text-center w-[17%]">Closed</TableHead>
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-2.5 px-3 text-right w-[23%]">Revenue</TableHead>
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-2.5 px-3 text-center w-[15%]">Active</TableHead>
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-2.5 px-3 text-center w-[15%]">Completed</TableHead>
+                      <TableRow className="hover:bg-transparent border-b border-border/30 bg-muted/20">
+                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-4 px-6 w-[30%]">Representative</TableHead>
+                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-4 px-4 text-center w-[17%]">Closed Won</TableHead>
+                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-4 px-6 text-right w-[23%]">Total Revenue</TableHead>
+                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-4 px-4 text-center w-[15%]">Active Deals</TableHead>
+                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-4 px-6 text-center w-[15%]">Completed</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {bdPerformanceData.map((row) => (
-                        <TableRow key={row.name} className="border-b border-border/30">
-                          <TableCell className="py-2.5 px-3 font-semibold text-sm">{row.name}</TableCell>
-                          <TableCell className="py-2.5 px-3 text-center font-semibold font-mono tabular-nums">{row.closed}</TableCell>
-                          <TableCell className="py-2.5 px-3 text-right font-semibold font-mono tabular-nums text-primary">
+                        <TableRow key={row.name} className="border-b border-border/20 hover:bg-muted/30 transition-colors">
+                          <TableCell className="py-4 px-6 font-semibold text-sm text-foreground">{row.name}</TableCell>
+                          <TableCell className="py-4 px-4 text-center font-bold font-mono text-sm tabular-nums text-foreground/80">{row.closed}</TableCell>
+                          <TableCell className="py-4 px-6 text-right font-bold font-mono text-sm tabular-nums text-emerald-600 dark:text-emerald-400">
                             ${row.revenue.toLocaleString()}
                           </TableCell>
-                          <TableCell className="py-2.5 px-3 text-center">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-500">{row.active}</span>
+                          <TableCell className="py-4 px-4 text-center">
+                            <span className="inline-flex items-center justify-center rounded-md bg-blue-500/10 px-2 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 min-w-[32px]">{row.active}</span>
                           </TableCell>
-                          <TableCell className="py-2.5 px-3 text-center">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-500">{row.completed}</span>
+                          <TableCell className="py-4 px-6 text-center">
+                            <span className="inline-flex items-center justify-center rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 min-w-[32px]">{row.completed}</span>
                           </TableCell>
                         </TableRow>
                       ))}
