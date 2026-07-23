@@ -9,19 +9,19 @@ import {
   TrendingUp,
   FileBarChart,
   Settings2,
-  Users,
   Target,
   History,
   UserCheck,
   CalendarDays,
   BarChart3,
-  Bell,
   Shield,
+  Filter,
 } from "lucide-react";
 
 const repLinks = [
   { href: "/sales/my-day", label: "Daily Log", icon: ClipboardList },
   { href: "/sales/my-progress", label: "My Progress", icon: TrendingUp },
+  { href: "/sales/icp-filters", label: "ICP Filters", icon: Filter },
   { href: "/sales/leads", label: "My Leads", icon: UserCheck },
   { href: "/sales/meetings", label: "Meetings", icon: CalendarDays },
   { href: "/sales/history", label: "Log History", icon: History },
@@ -29,6 +29,7 @@ const repLinks = [
 
 const ownerLinks = [
   { href: "/sales/command", label: "Command Center", icon: LayoutDashboard },
+  { href: "/sales/icp-filters", label: "ICP Filters", icon: Filter },
   { href: "/sales/leads", label: "Leads", icon: UserCheck },
   { href: "/sales/meetings", label: "Meetings", icon: CalendarDays },
   { href: "/sales/analytics", label: "Analytics", icon: BarChart3 },

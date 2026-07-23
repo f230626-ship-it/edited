@@ -414,6 +414,43 @@ export interface SalesActivityLog {
   user?: Pick<Employee, "id" | "full_name" | "email">;
 }
 
+export type IcpFilterSource = "manual" | "sheet_sync" | "excel_import";
+
+export interface IcpFilter {
+  id: string;
+  profile_name: string;
+  sales_profile_id: string | null;
+  filter_date_raw: string | null;
+  filter_date: string | null;
+  period_year: number | null;
+  period_month: number | null;
+  period_week: number | null;
+  company_headcount: string | null;
+  past_companies: string | null;
+  regions: string | null;
+  job_titles: string | null;
+  industry: string | null;
+  years_experience: string | null;
+  projects_closed: string | null;
+  notes: string | null;
+  source: IcpFilterSource;
+  external_row_hash: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IcpFilterSyncMeta {
+  id: string;
+  google_sheet_id: string | null;
+  sheet_tab_name: string | null;
+  last_synced_at: string | null;
+  last_sync_status: string | null;
+  last_sync_message: string | null;
+  last_sync_count: number | null;
+  updated_at: string;
+}
+
 export interface WeeklyReport {
   id: string;
   week_start: string;
