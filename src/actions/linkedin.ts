@@ -177,36 +177,52 @@ async function extractAndParseZip(
   const datasets: CSVDataset[] = [];
 
   try {
-    // Note: In production, use a proper ZIP library like jszip or unzipper
-    // For now, this is a placeholder that expects CSV files to be extracted server-side
+    const JSZip = (await import('jszip')).default;
+    const zip = await JSZip.loadAsync(arrayBuffer);
     
-    // This would use JSZip or similar:
-    // const JSZip = require('jszip');
-    // const zip = await JSZip.loadAsync(arrayBuffer);
+    // Get all files in the ZIP
+    const files = Object.keys(zip.files);
     
-    // For each file in ZIP:
-    // const files = Object.keys(zip.files);
-    // for (const filename of files) {
-    //   if (filename.endsWith('.csv')) {
-    //     const content = await zip.files[filename].async('text');
-    //     const type = detectDatasetType(filename);
-    //     const data = parseCSV(content);
-    //     datasets.push({
-    //       filename,
-    //       type,
-    //       rowCount: data.length,
-    //       columns: Object.keys(data[0] || {}),
-    //       data,
-    //     });
-    //   }
-    // }
-
-    console.warn("ZIP extraction not yet implemented - requires jszip package");
+    for (const filename of files) {
+      const file = zip.files[filename];
+      
+      // Skip directories and non-CSV files
+      if (file.dir || !filename.endsWith('.csv')) {
+        continue;
+      }
+      
+      try {
+        // Extract file content
+        const content = await file.async('text');
+        
+        // Detect dataset type
+        const type = detectDatasetType(filename);
+        
+        // Parse CSV
+        const data = parseCSV(content);
+        
+        // Only add if we got valid data
+        if (data.length > 0) {
+          datasets.push({
+            filename,
+            type,
+            rowCount: data.length,
+            columns: Object.keys(data[0] || {}),
+            data,
+          });
+          
+          console.log(`Parsed ${filename}: ${data.length} rows, type: ${type}`);
+        }
+      } catch (fileError) {
+        console.error(`Error parsing ${filename}:`, fileError);
+        // Continue with other files
+      }
+    }
     
     return datasets;
   } catch (error) {
     console.error("Error extracting ZIP:", error);
-    throw error;
+    throw new Error("Failed to extract ZIP file. Please ensure it's a valid LinkedIn export.");
   }
 }
 
