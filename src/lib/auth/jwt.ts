@@ -99,12 +99,14 @@ export async function verifySupabaseJwt(
 
   // Read issuer from env at call time (not module load time) so tests can override
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  // Supabase access tokens use issuer "<projectUrl>/auth/v1", not the bare project URL.
+  const expectedIssuer = supabaseUrl ? `${supabaseUrl.replace(/\/$/, "")}/auth/v1` : "";
 
   try {
     const result: JWTVerifyResult = await jwtVerify(token, jwks, {
       audience: EXPECTED_AUDIENCE,
       // Only validate issuer when the URL is available
-      ...(supabaseUrl ? { issuer: supabaseUrl } : {}),
+      ...(expectedIssuer ? { issuer: expectedIssuer } : {}),
       // jose checks exp/nbf automatically; clockTolerance absorbs minor skew
       clockTolerance: 10, // seconds
     });
