@@ -156,11 +156,17 @@ export async function createIcpFilter(input: IcpFilterInput & { force?: boolean 
   if (!input.force) {
     const { matches } = await checkIcpFilterDuplicates(input);
     if (matches.length > 0 && matches[0].score >= 0.45) {
+      const top = matches[0];
+      const freshnessNote = top.freshness?.label ? ` ${top.freshness.label}.` : "";
+      const closedNote =
+        top.closed?.closedCount > 0
+          ? ` That prior run closed ${top.closed.closedCount} project(s).`
+          : "";
       return {
         error: null,
         needsConfirmation: true,
         matches,
-        message: `Similar filter already used on ${input.profile_name} — review before saving.`,
+        message: `Similar filter already used on ${input.profile_name}.${freshnessNote}${closedNote}`,
       };
     }
   }

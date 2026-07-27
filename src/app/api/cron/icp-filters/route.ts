@@ -5,8 +5,9 @@ import { runIcpFiltersCronSync } from "@/actions/icp-filters";
  * Scheduled sync for ICP filters from Google Sheets.
  * Protect with CRON_SECRET header: Authorization: Bearer <CRON_SECRET>
  *
- * Suggested Vercel cron (vercel.json):
- *   { "path": "/api/cron/icp-filters", "schedule": "0 6 * * 1" }  // weekly Monday 06:00 UTC
+ * Vercel cron (vercel.json):
+ *   { "path": "/api/cron/icp-filters", "schedule": "0 4 * * 6" }
+ *   → every Saturday 04:00 UTC = 09:00 AM Pakistan time
  */
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;

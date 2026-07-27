@@ -23,10 +23,10 @@ Track LinkedIn Sales Navigator / ICP outreach filters per profile, month, and ge
 ## Weekly cron
 `GET/POST /api/cron/icp-filters` with header `Authorization: Bearer $CRON_SECRET`
 
-Optional `vercel.json` cron (Monday 06:00 UTC):
+Vercel cron (Saturday 09:00 AM Pakistan / 04:00 UTC):
 ```json
 {
-  "crons": [{ "path": "/api/cron/icp-filters", "schedule": "0 6 * * 1" }]
+  "crons": [{ "path": "/api/cron/icp-filters", "schedule": "0 4 * * 6" }]
 }
 ```
 

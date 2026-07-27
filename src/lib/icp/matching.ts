@@ -146,14 +146,98 @@ function jaccard(a: string[], b: string[]): number {
   return inter / (setA.size + setB.size - inter);
 }
 
+export interface ParsedProjectsClosed {
+  closedCount: number;
+  pipelineCount: number;
+  names: string[];
+  raw: string;
+  /** Heuristic quality: closed deals minus weak notes like "not work start". */
+  effectiveClosed: number;
+}
+
+/** Parse free-text outcomes like "2 Closed : John Bush & Pedro" or "1 Closed : X | 1 In on Last Stage Y". */
+export function parseProjectsClosed(raw: string | null | undefined): ParsedProjectsClosed {
+  const text = (raw || "").trim();
+  if (!text) {
+    return { closedCount: 0, pipelineCount: 0, names: [], raw: "", effectiveClosed: 0 };
+  }
+
+  const closedMatch = text.match(/(\d+)\s*closed/i);
+  const pipelineMatch = text.match(/(\d+)\s*(?:in\s+on\s+)?last\s*stage/i);
+  const closedCount = closedMatch ? Number(closedMatch[1]) : /\bclosed\b/i.test(text) ? 1 : 0;
+  const pipelineCount = pipelineMatch ? Number(pipelineMatch[1]) : 0;
+
+  const afterClosed = text.split(/closed\s*:?/i)[1] || text;
+  const names = afterClosed
+    .replace(/\[|\]/g, " ")
+    .split(/\s*(?:&|\||,|;)\s*/)
+    .map((n) =>
+      n
+        .replace(/\d+\s*(?:in\s+on\s+)?last\s*stage/gi, "")
+        .replace(/\d+\s*closed/gi, "")
+        .trim()
+    )
+    .filter((n) => n.length > 1 && !/^closed$/i.test(n));
+
+  const weakNotes = (text.match(/not work start|didn'?t start|cancelled|lost/gi) || []).length;
+  const effectiveClosed = Math.max(0, closedCount - weakNotes);
+
+  return { closedCount, pipelineCount, names, raw: text, effectiveClosed };
+}
+
+export type RerunAdvice = "avoid" | "caution" | "safe" | "unknown";
+
+export interface FreshnessInfo {
+  monthsAgo: number | null;
+  advice: RerunAdvice;
+  label: string;
+}
+
+/** How long ago a filter period was — drives re-run advice. */
+export function getFilterFreshness(
+  periodYear: number | null | undefined,
+  periodMonth: number | null | undefined,
+  now = new Date()
+): FreshnessInfo {
+  if (!periodYear || !periodMonth) {
+    return { monthsAgo: null, advice: "unknown", label: "Unknown period" };
+  }
+  const monthsAgo = (now.getFullYear() - periodYear) * 12 + (now.getMonth() + 1 - periodMonth);
+  if (monthsAgo < 0) {
+    return { monthsAgo: 0, advice: "avoid", label: "Used this month — do not repeat yet" };
+  }
+  if (monthsAgo <= 1) {
+    return {
+      monthsAgo,
+      advice: "avoid",
+      label: monthsAgo === 0 ? "Used this month — do not repeat yet" : "Used last month — too recent to re-run",
+    };
+  }
+  if (monthsAgo <= 3) {
+    return {
+      monthsAgo,
+      advice: "caution",
+      label: `Used ${monthsAgo} months ago — only re-run if intentional`,
+    };
+  }
+  return {
+    monthsAgo,
+    advice: "safe",
+    label: `Last used ${monthsAgo} months ago — safe to re-run on this profile`,
+  };
+}
+
 export interface DuplicateMatch {
   score: number;
   reasons: string[];
+  freshness: FreshnessInfo;
+  closed: ParsedProjectsClosed;
   filter: IcpFilterInput & {
     id?: string;
     filter_date?: string | null;
     period_year?: number | null;
     period_month?: number | null;
+    projects_closed?: string | null;
   };
 }
 
@@ -165,6 +249,7 @@ export function scoreDuplicate(
     filter_date?: string | null;
     period_year?: number | null;
     period_month?: number | null;
+    projects_closed?: string | null;
   }
 ): DuplicateMatch | null {
   if (normalizeText(proposed.profile_name) !== normalizeText(existing.profile_name)) {
@@ -212,7 +297,15 @@ export function scoreDuplicate(
   }
 
   if (score < 0.35 || reasons.length === 0) return null;
-  return { score, reasons, filter: existing };
+
+  const freshness = getFilterFreshness(existing.period_year, existing.period_month);
+  const closed = parseProjectsClosed(existing.projects_closed);
+  if (closed.closedCount > 0) {
+    reasons.push(`${closed.closedCount} project(s) closed from that run`);
+  }
+  reasons.push(freshness.label);
+
+  return { score, reasons, freshness, closed, filter: existing };
 }
 
 export function monthLabel(year: number | null, month: number | null): string {
@@ -225,10 +318,37 @@ export function monthLabel(year: number | null, month: number | null): string {
 }
 
 export function extractGeographies(regions: string | null | undefined): string[] {
-  return tokenizeList(regions).map((r) =>
-    r
-      .replace(/\busa\b/g, "united states")
-      .replace(/\buk\b/g, "united kingdom")
-      .trim()
-  );
+  const raw = (regions || "").replace(/\r/g, "\n").trim();
+  if (!raw) return [];
+
+  // Prefer newline / pipe / semicolon splits first (sheet cells often use these).
+  const chunks = raw
+    .split(/[\n|;]+/)
+    .map((c) => c.replace(/✅/g, "").trim())
+    .filter(Boolean);
+
+  const results: string[] = [];
+  for (const chunk of chunks) {
+    // "City, State, Country" style — keep as one place
+    const commaCount = (chunk.match(/,/g) || []).length;
+    const looksLikeAddress =
+      commaCount >= 2 ||
+      /\b(united states|usa|united kingdom|uk|canada|germany|france)\b/i.test(chunk);
+
+    const parts = looksLikeAddress
+      ? [chunk]
+      : chunk.split(/\s*,\s*/).map((p) => p.trim()).filter(Boolean);
+
+    for (const part of parts) {
+      const cleaned = normalizeText(part)
+        .replace(/\busa\b/g, "united states")
+        .replace(/\buk\b/g, "united kingdom")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (cleaned.length < 2) continue;
+      results.push(cleaned);
+    }
+  }
+
+  return Array.from(new Set(results));
 }

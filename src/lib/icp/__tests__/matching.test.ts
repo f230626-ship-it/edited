@@ -1,6 +1,8 @@
 import { describe, expect, it } from "@jest/globals";
 import {
   parseFilterPeriod,
+  parseProjectsClosed,
+  getFilterFreshness,
   scoreDuplicate,
   rowHash,
 } from "@/lib/icp/matching";
@@ -16,6 +18,33 @@ describe("parseFilterPeriod", () => {
   it("parses month ranges using last month", () => {
     const p = parseFilterPeriod("FEB to 15 MAR", 2026);
     expect(p.period_month).toBe(3);
+  });
+});
+
+describe("parseProjectsClosed", () => {
+  it("parses closed count and names", () => {
+    const p = parseProjectsClosed("2 Closed : John Bush & Pedro");
+    expect(p.closedCount).toBe(2);
+    expect(p.names.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("parses last-stage pipeline", () => {
+    const p = parseProjectsClosed("1 Closed : IAN Magley |  1 In on Last Stage Jack Elderman");
+    expect(p.closedCount).toBe(1);
+    expect(p.pipelineCount).toBe(1);
+  });
+});
+
+describe("getFilterFreshness", () => {
+  it("marks recent months as avoid", () => {
+    const now = new Date(2026, 6, 15); // July 2026
+    expect(getFilterFreshness(2026, 7, now).advice).toBe("avoid");
+    expect(getFilterFreshness(2026, 6, now).advice).toBe("avoid");
+  });
+
+  it("marks old filters as safe to re-run", () => {
+    const now = new Date(2026, 6, 15);
+    expect(getFilterFreshness(2026, 2, now).advice).toBe("safe");
   });
 });
 
@@ -40,10 +69,13 @@ describe("scoreDuplicate", () => {
         period_month: 2,
         period_year: 2026,
         filter_date_raw: "February",
+        projects_closed: "2 Closed : John Bush & Pedro",
       }
     );
     expect(match).not.toBeNull();
     expect(match!.score).toBeGreaterThanOrEqual(0.35);
+    expect(match!.closed.closedCount).toBe(2);
+    expect(match!.freshness.advice).toBeTruthy();
   });
 
   it("ignores different profiles", () => {
