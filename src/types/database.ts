@@ -212,6 +212,8 @@ export interface AuditLog {
   created_at: string;
 }
 
+export type ProjectSource = "manual" | "sheet_sync" | "excel_import";
+
 export interface Project {
   id: string;
   name: string;
@@ -242,6 +244,8 @@ export interface Project {
   project_rate?: string | null;
   expected_monthly_revenue?: number | null;
   profile_name?: string | null;
+  source?: ProjectSource | null;
+  external_row_hash?: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -441,6 +445,17 @@ export interface IcpFilter {
 }
 
 export interface IcpFilterSyncMeta {
+  id: string;
+  google_sheet_id: string | null;
+  sheet_tab_name: string | null;
+  last_synced_at: string | null;
+  last_sync_status: string | null;
+  last_sync_message: string | null;
+  last_sync_count: number | null;
+  updated_at: string;
+}
+
+export interface ProjectSyncMeta {
   id: string;
   google_sheet_id: string | null;
   sheet_tab_name: string | null;

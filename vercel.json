@@ -9,6 +9,10 @@
     {
       "path": "/api/cron/icp-filters",
       "schedule": "0 4 * * 6"
+    },
+    {
+      "path": "/api/cron/projects-sheet",
+      "schedule": "0 4 1,15 * *"
     }
   ]
 }
