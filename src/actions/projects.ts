@@ -140,7 +140,7 @@ export async function bulkImportProjects(payload: Record<string, unknown>[]) {
     "expected_profit", "payment_status", "start_date", "expected_delivery_date",
     "actual_delivery_date", "status", "priority", "progress_percentage",
     "project_type", "payment_structure", "project_rate", "expected_monthly_revenue",
-    "profile_name",
+    "profile_name", "business_model", "assigned_bd_label", "assigned_resource_label",
   ];
 
   let successCount = 0;

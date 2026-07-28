@@ -240,10 +240,13 @@ export interface Project {
   priority?: "Low" | "Medium" | "High";
   progress_percentage?: number;
   project_type?: string | null;
+  business_model?: string | null;
   payment_structure?: string | null;
   project_rate?: string | null;
   expected_monthly_revenue?: number | null;
   profile_name?: string | null;
+  assigned_bd_label?: string | null;
+  assigned_resource_label?: string | null;
   source?: ProjectSource | null;
   external_row_hash?: string | null;
   created_at: string;

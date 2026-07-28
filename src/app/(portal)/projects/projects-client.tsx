@@ -225,12 +225,24 @@ export default function ProjectsClient({
       const matchesStatus = statusFilter === "ALL" || p.status === statusFilter;
       const matchesClient = clientFilter === "ALL" || p.client_name === clientFilter;
       const matchesIndustry = industryFilter === "ALL" || p.industry === industryFilter;
-      const matchesBd = bdFilter === "ALL" || p.bd_id === bdFilter;
+      const matchesBd =
+        bdFilter === "ALL" ||
+        p.bd_id === bdFilter ||
+        (p.assigned_bd_label || "").toLowerCase().includes(
+          (allEmployees.find((e) => e.id === bdFilter)?.full_name || "").toLowerCase().split(" ")[0] || "__none__"
+        );
       const matchesLeadSource = leadSourceFilter === "ALL" || p.lead_source === leadSourceFilter;
       
       const matchesResource =
         resourceFilter === "ALL" ||
-        p.resources.some((r) => r.employee_id === resourceFilter);
+        p.resources.some((r) => r.employee_id === resourceFilter) ||
+        (p.assigned_resource_label || "")
+          .toLowerCase()
+          .includes(
+            (allEmployees.find((e) => e.id === resourceFilter)?.full_name || "")
+              .toLowerCase()
+              .split(" ")[0] || "__none__"
+          );
 
       // Date ranges
       const projectStart = new Date(p.start_date);
@@ -264,6 +276,7 @@ export default function ProjectsClient({
     });
   }, [
     initialProjects,
+    allEmployees,
     search,
     statusFilter,
     clientFilter,
@@ -1297,28 +1310,50 @@ export default function ProjectsClient({
                         >
                           <TableCell className="py-2.5 pl-4 pr-3 max-w-0 truncate text-[13px] font-medium group-hover:text-primary transition-colors">{p.client_name}</TableCell>
                           <TableCell className="py-2.5 px-3 max-w-0 truncate text-[13px]">{p.name}</TableCell>
-                          <TableCell className="py-2.5 px-3 max-w-0 truncate text-xs text-muted-foreground">{p.project_type || "—"}</TableCell>
+                          <TableCell className="py-2.5 px-3 max-w-0 truncate text-xs text-muted-foreground" title={[p.project_type, p.business_model].filter(Boolean).join(" · ")}>
+                            {[p.project_type, p.business_model].filter(Boolean).join(" · ") || "—"}
+                          </TableCell>
                           <TableCell className="py-2.5 px-3 text-right font-semibold font-mono text-foreground tabular-nums text-[13px] whitespace-nowrap">
-                            ${Number(p.value || 0).toLocaleString()}
+                            {Number(p.value || 0) > 0 ? `$${Number(p.value).toLocaleString()}` : "—"}
                           </TableCell>
                           <TableCell className="py-2.5 px-3 max-w-0 truncate text-xs text-muted-foreground">{p.payment_structure || "—"}</TableCell>
                           <TableCell className="py-2.5 px-3 text-xs tabular-nums text-muted-foreground whitespace-nowrap">
-                            {p.start_date ? new Date(p.start_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+                            {p.start_date ? new Date(p.start_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
                           </TableCell>
-                          <TableCell className="py-2.5 px-3 max-w-0 truncate text-xs text-muted-foreground">{p.project_rate || "—"}</TableCell>
+                          <TableCell className="py-2.5 px-3 max-w-0 truncate text-xs text-muted-foreground" title={p.project_rate || undefined}>{p.project_rate || "—"}</TableCell>
                           <TableCell className="py-2.5 px-3 overflow-hidden">
                             {getStatusBadge(p.status)}
                           </TableCell>
                           <TableCell className="py-2.5 px-3 text-right font-mono tabular-nums text-xs whitespace-nowrap">
                             {p.expected_monthly_revenue ? `$${Number(p.expected_monthly_revenue).toLocaleString()}` : "—"}
                           </TableCell>
-                          <TableCell className="py-2.5 px-3 max-w-0 truncate text-xs text-muted-foreground" title={p.resources.map((r) => r.employee.full_name).join(", ")}>
-                            {p.resources.length > 0 ? p.resources.map((r) => r.employee.full_name.split(" ")[0]).join(", ") : "—"}
+                          <TableCell
+                            className="py-2.5 px-3 max-w-0 truncate text-xs text-muted-foreground"
+                            title={
+                              p.assigned_resource_label ||
+                              p.resources.map((r) => r.employee.full_name).join(", ") ||
+                              undefined
+                            }
+                          >
+                            {p.assigned_resource_label ||
+                              (p.resources.length > 0
+                                ? p.resources.map((r) => r.employee.full_name.split(" ")[0]).join(", ")
+                                : "—")}
                           </TableCell>
-                          <TableCell className="py-2.5 px-3 max-w-0 truncate text-xs text-muted-foreground">{p.profile_name || "—"}</TableCell>
-                          <TableCell className="py-2.5 px-3 max-w-0 truncate text-xs text-muted-foreground">{p.bd?.full_name || "—"}</TableCell>
+                          <TableCell className="py-2.5 px-3 max-w-0 truncate text-xs text-muted-foreground" title={p.profile_name || undefined}>{p.profile_name || "—"}</TableCell>
+                          <TableCell
+                            className="py-2.5 px-3 max-w-0 truncate text-xs text-muted-foreground"
+                            title={p.assigned_bd_label || p.bd?.full_name || undefined}
+                          >
+                            {p.assigned_bd_label || p.bd?.full_name?.split(" ")[0] || "—"}
+                          </TableCell>
                           <TableCell className="py-2.5 pl-3 pr-4 text-xs tabular-nums text-muted-foreground whitespace-nowrap">
-                            {p.expected_delivery_date ? new Date(p.expected_delivery_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}
+                            {p.expected_delivery_date
+                              ? new Date(p.expected_delivery_date + "T00:00:00").toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                })
+                              : "—"}
                           </TableCell>
                         </TableRow>
                       ))

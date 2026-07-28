@@ -248,6 +248,28 @@ export default function ProjectDetailClient({
                 {project.company_name && (
                   <InfoRow label="Company" value={project.company_name} icon={Briefcase} />
                 )}
+                {project.project_type && (
+                  <InfoRow label="Project Type" value={project.project_type} icon={Briefcase} />
+                )}
+                {project.business_model && (
+                  <InfoRow label="Business Model" value={project.business_model} icon={Globe} />
+                )}
+                {project.profile_name && (
+                  <InfoRow label="Profile Name" value={project.profile_name} icon={Users} />
+                )}
+                {project.payment_structure && (
+                  <InfoRow label="Payment Structure" value={project.payment_structure} icon={DollarSign} />
+                )}
+                {project.project_rate && (
+                  <InfoRow label="Project Rate" value={project.project_rate} icon={DollarSign} />
+                )}
+                {project.expected_monthly_revenue != null && project.expected_monthly_revenue > 0 && (
+                  <InfoRow
+                    label="Expected MRR"
+                    value={`${project.currency} ${Number(project.expected_monthly_revenue).toLocaleString()}`}
+                    icon={TrendingUp}
+                  />
+                )}
                 {project.client_email && (
                   <InfoRow label="Email" value={project.client_email} icon={Mail} />
                 )}
@@ -391,13 +413,29 @@ export default function ProjectDetailClient({
               <OwnerRow
                 label="BD Representative"
                 person={project.bd}
-                fallback="Unassigned"
+                fallback={project.assigned_bd_label || "Unassigned"}
               />
               <OwnerRow
-                label="Front Face"
+                label="Assigned Resource / Front Face"
                 person={project.closing_developer}
-                fallback="Unassigned"
+                fallback={project.assigned_resource_label || "Unassigned"}
               />
+              {(project.assigned_bd_label || project.assigned_resource_label) && (
+                <div className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-1.5 text-xs">
+                  {project.assigned_bd_label && (
+                    <p>
+                      <span className="text-muted-foreground">Sheet BD: </span>
+                      <span className="font-medium">{project.assigned_bd_label}</span>
+                    </p>
+                  )}
+                  {project.assigned_resource_label && (
+                    <p>
+                      <span className="text-muted-foreground">Sheet Resource: </span>
+                      <span className="font-medium">{project.assigned_resource_label}</span>
+                    </p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -422,11 +460,31 @@ export default function ProjectDetailClient({
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Budget</span>
+                <span className="text-muted-foreground">Budget / Value</span>
                 <span className="font-mono font-bold">
-                  {project.currency} {project.value.toLocaleString()}
+                  {project.currency} {Number(project.value || 0).toLocaleString()}
                 </span>
               </div>
+              {project.project_rate && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Sheet Rate</span>
+                  <span className="font-mono text-xs">{project.project_rate}</span>
+                </div>
+              )}
+              {project.expected_monthly_revenue != null && project.expected_monthly_revenue > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">MRR</span>
+                  <span className="font-mono text-xs">
+                    {project.currency} {Number(project.expected_monthly_revenue).toLocaleString()}
+                  </span>
+                </div>
+              )}
+              {project.business_model && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Model</span>
+                  <span className="text-xs font-semibold">{project.business_model}</span>
+                </div>
+              )}
               {project.retainer_amount ? (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Retainer</span>

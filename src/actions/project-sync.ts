@@ -7,15 +7,99 @@ import { fetchProjectsFromSheet } from "@/lib/google/projects-sheet";
 import type { ProjectSheetRow } from "@/lib/projects/sheet-parse";
 import type { ProjectSyncMeta } from "@/types/database";
 
+const DEFAULT_PROJECTS_TAB = "Projects & Clients Sheet";
+
+function resolveProjectsTabName(raw?: string | null) {
+  const tab = (raw || "").trim();
+  // Guard against the old incorrect default tab name
+  if (!tab || tab === "Projects") return DEFAULT_PROJECTS_TAB;
+  return tab;
+}
+
+/** Match "Fatima", "Asim Ali", or "Outsource to Faizan (50k)" to employees. */
 function findEmployeeId(
   employees: { id: string; full_name: string }[],
   name: string | null | undefined
 ): string | null {
   if (!name?.trim()) return null;
-  const match = employees.find(
-    (e) => e.full_name.toLowerCase().trim() === name.toLowerCase().trim()
+  const raw = name.toLowerCase().trim();
+
+  const exact = employees.find((e) => e.full_name.toLowerCase().trim() === raw);
+  if (exact) return exact.id;
+
+  const firstName = employees.find(
+    (e) => e.full_name.toLowerCase().split(/\s+/)[0] === raw
   );
-  return match?.id ?? null;
+  if (firstName) return firstName.id;
+
+  // Longest name-part wins (avoid matching tiny tokens)
+  let best: { id: string; len: number } | null = null;
+  for (const e of employees) {
+    for (const part of e.full_name.toLowerCase().split(/\s+/)) {
+      if (part.length < 3) continue;
+      const re = new RegExp(`\\b${part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+      if (re.test(raw) && (!best || part.length > best.len)) {
+        best = { id: e.id, len: part.length };
+      }
+    }
+  }
+  return best?.id ?? null;
+}
+
+function collectEmployeeIdsFromLabels(
+  employees: { id: string; full_name: string }[],
+  labels: (string | null | undefined)[]
+): string[] {
+  const ids = new Set<string>();
+  for (const label of labels) {
+    if (!label?.trim()) continue;
+    // Split compound labels: "Fatima + Momina", "Upsell (Faizan + Asim)"
+    const chunks = label
+      .split(/[+/,;|&]|\band\b/i)
+      .map((c) => c.replace(/[()]/g, " ").trim())
+      .filter(Boolean);
+    for (const chunk of chunks.length ? chunks : [label]) {
+      const id = findEmployeeId(employees, chunk);
+      if (id) ids.add(id);
+    }
+    // Also try the whole string once (e.g. "Fatima Amer")
+    const whole = findEmployeeId(employees, label);
+    if (whole) ids.add(whole);
+  }
+  return Array.from(ids);
+}
+
+async function syncProjectResources(
+  admin: ReturnType<typeof createAdminClient>,
+  projectId: string,
+  row: ProjectSheetRow,
+  employees: { id: string; full_name: string }[]
+) {
+  const teamIds = collectEmployeeIdsFromLabels(employees, [
+    row.dev_name,
+    row.team_members_raw,
+  ]);
+  if (teamIds.length === 0) return;
+
+  const { data: existing } = await admin
+    .from("project_resources")
+    .select("employee_id")
+    .eq("project_id", projectId);
+
+  const have = new Set((existing ?? []).map((r) => r.employee_id as string));
+  const toAdd = teamIds.filter((id) => !have.has(id));
+  if (toAdd.length === 0) return;
+
+  await admin.from("project_resources").insert(
+    toAdd.map((empId) => ({
+      project_id: projectId,
+      employee_id: empId,
+      role: "Full Stack Developer",
+      allocation_percentage: Math.floor(100 / teamIds.length),
+      start_date: row.start_date,
+      end_date: row.expected_delivery_date,
+    }))
+  );
 }
 
 async function upsertProjectFromSheetRow(
@@ -24,6 +108,12 @@ async function upsertProjectFromSheetRow(
   employees: { id: string; full_name: string }[],
   actorId: string | null
 ) {
+  const resourceIds = collectEmployeeIdsFromLabels(employees, [
+    row.dev_name,
+    row.team_members_raw,
+  ]);
+  const bdIds = collectEmployeeIdsFromLabels(employees, [row.bd_name]);
+
   const payload = {
     name: row.name,
     client_name: row.client_name,
@@ -42,16 +132,19 @@ async function upsertProjectFromSheetRow(
     payment_status: row.payment_status,
     progress_percentage: row.progress_percentage,
     project_type: row.project_type,
+    business_model: row.business_model,
     payment_structure: row.payment_structure,
     project_rate: row.project_rate,
     expected_monthly_revenue: row.expected_monthly_revenue,
     profile_name: row.profile_name,
+    assigned_bd_label: row.bd_name,
+    assigned_resource_label: row.dev_name,
     is_monthly_retainer: row.is_monthly_retainer,
     retainer_amount: row.retainer_amount,
     expected_profit: row.expected_profit,
     manager_id: findEmployeeId(employees, row.manager_name),
-    bd_id: findEmployeeId(employees, row.bd_name),
-    closing_developer_id: findEmployeeId(employees, row.dev_name),
+    bd_id: bdIds[0] ?? findEmployeeId(employees, row.bd_name),
+    closing_developer_id: resourceIds[0] ?? findEmployeeId(employees, row.dev_name),
     source: "sheet_sync" as const,
     external_row_hash: row.external_row_hash,
     updated_at: new Date().toISOString(),
@@ -67,9 +160,11 @@ async function upsertProjectFromSheetRow(
   if (byHash?.id) {
     const { error } = await admin.from("projects").update(payload).eq("id", byHash.id);
     if (error) throw new Error(error.message);
+    await syncProjectResources(admin, byHash.id, row, employees);
     return { id: byHash.id as string, action: "updated" as const };
   }
 
+  // Fallback match: same client + project name (handles hash changes after parser fixes)
   const { data: byName } = await admin
     .from("projects")
     .select("id")
@@ -80,6 +175,7 @@ async function upsertProjectFromSheetRow(
   if (byName?.id) {
     const { error } = await admin.from("projects").update(payload).eq("id", byName.id);
     if (error) throw new Error(error.message);
+    await syncProjectResources(admin, byName.id, row, employees);
     return { id: byName.id as string, action: "updated" as const };
   }
 
@@ -94,31 +190,8 @@ async function upsertProjectFromSheetRow(
     .single();
 
   if (error) throw new Error(error.message);
-
-  // Optional resource assignment from Assigned Resource / team members
-  const teamNames = [
-    ...(row.dev_name ? [row.dev_name] : []),
-    ...((row.team_members_raw || "").split(/[,;|]/).map((n) => n.trim()).filter(Boolean)),
-  ];
-  const teamIds = Array.from(
-    new Set(
-      teamNames
-        .map((n) => findEmployeeId(employees, n))
-        .filter((id): id is string => !!id)
-    )
-  );
-
-  if (inserted?.id && teamIds.length > 0) {
-    await admin.from("project_resources").insert(
-      teamIds.map((empId) => ({
-        project_id: inserted.id,
-        employee_id: empId,
-        role: "Full Stack Developer",
-        allocation_percentage: Math.floor(100 / teamIds.length),
-        start_date: row.start_date,
-        end_date: row.expected_delivery_date,
-      }))
-    );
+  if (inserted?.id) {
+    await syncProjectResources(admin, inserted.id, row, employees);
   }
 
   return { id: inserted.id as string, action: "inserted" as const };
@@ -144,7 +217,7 @@ export async function updateProjectSyncSettings(input: {
   const { error } = await admin.from("project_sync_meta").upsert({
     id: "default",
     google_sheet_id: input.google_sheet_id.trim(),
-    sheet_tab_name: input.sheet_tab_name.trim() || "Projects & Clients Sheet",
+    sheet_tab_name: resolveProjectsTabName(input.sheet_tab_name),
     updated_at: new Date().toISOString(),
   });
   if (error) return { error: error.message };
@@ -170,11 +243,11 @@ export async function syncProjectsFromSheet(options?: {
     meta?.google_sheet_id ||
     process.env.PROJECTS_GOOGLE_SHEET_ID ||
     "";
-  const tabName =
+  const tabName = resolveProjectsTabName(
     options?.tabName ||
-    meta?.sheet_tab_name ||
-    process.env.PROJECTS_SHEET_TAB ||
-    "Projects & Clients Sheet";
+      meta?.sheet_tab_name ||
+      process.env.PROJECTS_SHEET_TAB
+  );
 
   if (!spreadsheetId) {
     return {
@@ -210,19 +283,31 @@ export async function syncProjectsFromSheet(options?: {
       }
     }
 
+    const status =
+      failed === 0 ? "ok" : inserted + updated === 0 ? "error" : "partial";
+
     await admin.from("project_sync_meta").upsert({
       id: "default",
       google_sheet_id: spreadsheetId,
       sheet_tab_name: tabName,
       last_synced_at: new Date().toISOString(),
-      last_sync_status: "ok",
+      last_sync_status: status,
       last_sync_message: `Synced ${rows.length} rows — ${inserted} new, ${updated} updated${failed ? `, ${failed} failed` : ""}`,
       last_sync_count: inserted + updated,
       updated_at: new Date().toISOString(),
     });
 
     revalidatePath("/projects");
-    return { inserted, updated, failed, total: rows.length, error: null };
+    return {
+      inserted,
+      updated,
+      failed,
+      total: rows.length,
+      error:
+        status === "error"
+          ? `All ${failed} rows failed to sync. Check server logs (often a DB trigger issue).`
+          : null,
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await admin.from("project_sync_meta").upsert({
@@ -250,8 +335,9 @@ export async function runProjectsSheetCronSync() {
 
   const spreadsheetId =
     meta?.google_sheet_id || process.env.PROJECTS_GOOGLE_SHEET_ID || "";
-  const tabName =
-    meta?.sheet_tab_name || process.env.PROJECTS_SHEET_TAB || "Projects & Clients Sheet";
+  const tabName = resolveProjectsTabName(
+    meta?.sheet_tab_name || process.env.PROJECTS_SHEET_TAB
+  );
 
   if (!spreadsheetId) {
     return { error: "PROJECTS_GOOGLE_SHEET_ID not configured" };
@@ -289,16 +375,19 @@ export async function runProjectsSheetCronSync() {
     }
   }
 
+  const status =
+    failed === 0 ? "ok" : inserted + updated === 0 ? "error" : "partial";
+
   await admin.from("project_sync_meta").upsert({
     id: "default",
     google_sheet_id: spreadsheetId,
     sheet_tab_name: tabName,
     last_synced_at: new Date().toISOString(),
-    last_sync_status: "ok",
+    last_sync_status: status,
     last_sync_message: `Cron: ${inserted} new, ${updated} updated${failed ? `, ${failed} failed` : ""}`,
     last_sync_count: inserted + updated,
     updated_at: new Date().toISOString(),
   });
 
-  return { inserted, updated, failed, total: rows.length };
+  return { inserted, updated, failed, total: rows.length, status };
 }

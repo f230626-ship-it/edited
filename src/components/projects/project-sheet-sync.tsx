@@ -27,7 +27,11 @@ export function ProjectSheetSyncControls({
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sheetId, setSheetId] = useState(syncMeta?.google_sheet_id ?? "");
-  const [sheetTab, setSheetTab] = useState(syncMeta?.sheet_tab_name ?? "Projects & Clients Sheet");
+  const [sheetTab, setSheetTab] = useState(
+    !syncMeta?.sheet_tab_name || syncMeta.sheet_tab_name === "Projects"
+      ? "Projects & Clients Sheet"
+      : syncMeta.sheet_tab_name
+  );
   const [isPending, startTransition] = useTransition();
 
   function handleSync() {

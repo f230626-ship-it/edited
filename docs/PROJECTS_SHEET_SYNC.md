@@ -26,6 +26,11 @@ Vercel schedule: `0 4 1,15 * *` (1st & 15th, 09:00 AM Pakistan).
 Code also skips if last successful sync was under 12 days ago.
 
 ## Expected columns (flexible headers)
-Client Name | Project Name | Project Type | Total Contract Value | Payment Structure | Start Date | Project Rate | Project Status | Expected Monthly Revenue (MRR) | Assigned Resource | Profile Name | Assigned BD | End Date
+Client Name | Project Name | Project Type | Total Contract Value (B2B/B2C) | Payment Structure | Start Date | Project Rate | Project Status | Expected Monthly Revenue (MRR) | Assigned Resource | Profile Name | Assigned BD | End Date
+
+Notes:
+- **Total Contract Value** on the MindVista sheet stores **B2B/B2C**, not dollars. Numeric value is derived from **Project Rate** / **MRR**.
+- **Assigned BD** / **Assigned Resource** are stored as free-text labels and fuzzy-matched to employees (e.g. `Fatima` → Fatima Amer) when possible.
+- There is no separate “who closed the project” column; **Assigned Resource** maps to Front Face / resources.
 
 Sync **upserts** by row hash (or matching name + client), so re-sync updates existing projects instead of duplicating.
