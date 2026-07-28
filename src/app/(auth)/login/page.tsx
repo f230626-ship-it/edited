@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useTransition, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, ArrowRight, Shield, Zap, Users } from "lucide-react";
-import { login } from "@/actions/auth";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +20,6 @@ const FEATURES = [
 ];
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -47,12 +46,37 @@ function LoginForm() {
     setError("");
     setNotice("");
     const formData = new FormData(e.currentTarget);
+    const email = String(formData.get("email") || "").trim();
+    const password = String(formData.get("password") || "");
+    const redirectTo = searchParams.get("redirectTo") || "/dashboard";
+
     startTransition(async () => {
-      const result = await login(formData);
-      if (result?.error) { setError(result.error.message); return; }
-      const redirectTo = searchParams.get("redirectTo") ?? "/dashboard";
-      router.push(redirectTo);
-      router.refresh();
+      try {
+        const supabase = createClient();
+        // Drop any dead refresh tokens before signing in
+        await supabase.auth.signOut({ scope: "local" });
+
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (signInError || !data.session) {
+          setError(signInError?.message || "Invalid email or password");
+          return;
+        }
+
+        // Confirm cookies are readable before navigating
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) {
+          setError("Signed in, but session cookies failed to save. Try Incognito, or clear site cookies for localhost.");
+          return;
+        }
+
+        window.location.assign(redirectTo.startsWith("/") ? redirectTo : "/dashboard");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Login failed");
+      }
     });
   }
 

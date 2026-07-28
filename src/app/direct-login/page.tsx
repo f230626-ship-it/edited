@@ -25,7 +25,7 @@ export default function DirectLoginPage() {
       
       const { data, error: loginError } = await supabase.auth.signInWithPassword({
         email: 'mabdullahshafiq100@gmail.com',
-        password: 'MindVista@Dev2026',
+        password: 'MindVista@Admin2026',
       });
 
       if (loginError) {

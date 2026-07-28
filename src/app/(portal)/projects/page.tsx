@@ -2,6 +2,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireRole } from "@/lib/auth";
 import ProjectsClient from "./projects-client";
 import { checkApproachingDeliveries } from "@/actions/projects";
+import { getProjectSyncMeta } from "@/actions/project-sync";
+import type { ProjectSyncMeta } from "@/types/database";
 
 export default async function ProjectsPage() {
   const employee = await requireRole("admin");
@@ -40,11 +42,19 @@ export default async function ProjectsPage() {
     console.error("Failed to query employees:", employeesError.message);
   }
 
+  let syncMeta: ProjectSyncMeta | null = null;
+  try {
+    syncMeta = await getProjectSyncMeta();
+  } catch (err) {
+    console.error("Failed to load project sync meta:", err);
+  }
+
   return (
     <ProjectsClient
       initialProjects={(projects as unknown as Parameters<typeof ProjectsClient>[0]["initialProjects"]) ?? []}
       allEmployees={allEmployees ?? []}
       currentEmployee={employee}
+      syncMeta={syncMeta}
     />
   );
 }
