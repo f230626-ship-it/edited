@@ -1028,8 +1028,8 @@ export default function ProjectsClient({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {bdPerformanceData.map((row) => (
-                        <TableRow key={row.name} className="border-b border-border/20 hover:bg-muted/30 transition-colors">
+                      {bdPerformanceData.map((row, idx) => (
+                        <TableRow key={`${row.name}-${idx}`} className="border-b border-border/20 hover:bg-muted/30 transition-colors">
                           <TableCell className="py-4 px-6 font-semibold text-sm text-foreground">{row.name}</TableCell>
                           <TableCell className="py-4 px-4 text-center font-bold font-mono text-sm tabular-nums text-foreground/80">{row.closed}</TableCell>
                           <TableCell className="py-4 px-6 text-right font-bold font-mono text-sm tabular-nums text-emerald-600 dark:text-emerald-400">

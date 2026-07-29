@@ -95,8 +95,8 @@ export function Header({
         </div>
       </div>
 
-      <div className="flex items-center gap-0.5 shrink-0 ml-2 sm:ml-3 rounded-lg border border-border/30 bg-background/60 backdrop-blur-sm p-0.5 shadow-sm hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-0">
+      <div className="flex items-center gap-1 shrink-0 ml-2 sm:ml-3 mr-0.5 sm:mr-1 md:mr-1.5 rounded-lg border border-border/30 bg-background/60 backdrop-blur-sm p-0.5 sm:p-1 shadow-sm hover:shadow-md transition-shadow">
+        <div className="flex items-center gap-0.5 sm:gap-1">
           <ThemeSwitcher />
           <NotificationBell notifications={notifications} unreadCount={unreadCount} />
         </div>

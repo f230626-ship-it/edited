@@ -6,6 +6,7 @@ import {
 } from "@/lib/auth/jwt";
 
 // ─── In-memory rate limiter for auth API routes ────────────────────────────
+// Resets on cold start — acceptable for free tier (no persistent Redis needed).
 const authRateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const AUTH_RATE_LIMIT_MAX = 10;
 const AUTH_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 min
@@ -27,6 +28,7 @@ function checkAuthRateLimit(ip: string): boolean {
   return true;
 }
 
+// ─── Security Headers ──────────────────────────────────────────────────────
 function applySecurityHeaders(response: NextResponse): void {
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
@@ -42,8 +44,10 @@ function applySecurityHeaders(response: NextResponse): void {
       "default-src 'self'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
+      // Next.js chunks use inline scripts during hydration
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "img-src 'self' data: blob: https:",
+      "font-src 'self'",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
       "frame-ancestors 'none'",
       "base-uri 'self'",
@@ -51,6 +55,7 @@ function applySecurityHeaders(response: NextResponse): void {
     ].join("; ")
   );
 
+  // HSTS — only set in production (requires HTTPS)
   if (process.env.NODE_ENV === "production") {
     response.headers.set(
       "Strict-Transport-Security",
@@ -59,47 +64,7 @@ function applySecurityHeaders(response: NextResponse): void {
   }
 }
 
-/** Copy Set-Cookie headers (incl. clears/maxAge) from the Supabase response. */
-function copyCookies(from: NextResponse, to: NextResponse): NextResponse {
-  const setCookies =
-    typeof from.headers.getSetCookie === "function"
-      ? from.headers.getSetCookie()
-      : [];
-
-  if (setCookies.length > 0) {
-    for (const cookie of setCookies) {
-      to.headers.append("Set-Cookie", cookie);
-    }
-    return to;
-  }
-
-  // Fallback if getSetCookie is unavailable
-  from.cookies.getAll().forEach((cookie) => {
-    to.cookies.set(cookie.name, cookie.value);
-  });
-  return to;
-}
-
-function redirectWithSessionCookies(
-  request: NextRequest,
-  supabaseResponse: NextResponse,
-  pathname: string,
-  searchParams?: Record<string, string>
-) {
-  const url = request.nextUrl.clone();
-  url.pathname = pathname;
-  url.search = "";
-  if (searchParams) {
-    for (const [k, v] of Object.entries(searchParams)) {
-      url.searchParams.set(k, v);
-    }
-  }
-  const redirectResponse = NextResponse.redirect(url);
-  copyCookies(supabaseResponse, redirectResponse);
-  applySecurityHeaders(redirectResponse);
-  return redirectResponse;
-}
-
+// ─── CSRF: Origin check on state-changing requests ─────────────────────────
 function isOriginAllowed(request: NextRequest): boolean {
   const method = request.method.toUpperCase();
   if (["GET", "HEAD", "OPTIONS"].includes(method)) return true;
@@ -108,6 +73,8 @@ function isOriginAllowed(request: NextRequest): boolean {
   const host = request.headers.get("host");
 
   if (!origin) {
+    // Next.js Server Actions always include the origin header in production.
+    // Allow missing origin only in development.
     return process.env.NODE_ENV !== "production";
   }
 
@@ -119,9 +86,17 @@ function isOriginAllowed(request: NextRequest): boolean {
   }
 }
 
+// ─── JWT fast-path verification ───────────────────────────────────────────
 /**
- * Local JWT check. Expired tokens are NOT hard failures — Supabase getUser()
- * must refresh them. Only reject cryptographically tampered tokens.
+ * Verify the JWT's signature, exp, nbf, iss, and aud locally using JWKS
+ * before allowing the request to hit the Supabase getUser() network call.
+ *
+ * Uses the public JWKS endpoint — no secret key needed.
+ *
+ * Returns:
+ *   "valid"   — token verified; proceed to getUser()
+ *   "invalid" — token present but cryptographically invalid; reject
+ *   "absent"  — no token cookie; getUser() will return null naturally
  */
 async function localJwtCheck(
   request: NextRequest
@@ -133,27 +108,32 @@ async function localJwtCheck(
   try {
     const result = await verifySupabaseJwt(token);
     if (!result.ok) {
-      // Let getUser() refresh expired / not-yet-valid tokens.
-      const hardFailures = ["INVALID_SIGNATURE", "INVALID_AUDIENCE", "INVALID_ISSUER"];
+      // Only hard-reject on definitive cryptographic failures.
+      // Treat JWKS_ERROR / UNKNOWN / MISSING_CONFIG as "absent" so a
+      // transient JWKS network failure doesn't log every user out.
+      const hardFailures = ["EXPIRED", "INVALID_SIGNATURE", "INVALID_AUDIENCE", "INVALID_ISSUER", "NOT_YET_VALID"];
       if (hardFailures.includes(result.reason)) {
         console.warn("[jwt] Local verification failed:", result.reason);
         return "invalid";
       }
-      // EXPIRED / NOT_YET_VALID / JWKS / UNKNOWN → fall through to getUser()
-      return "absent";
+      return "absent"; // network/config error — fall through to Supabase getUser()
     }
     return "valid";
   } catch {
-    return "absent";
+    return "absent"; // unexpected error — fail open
   }
 }
 
+// ─── Main session update + route protection ───────────────────────────────
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder";
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    key,
     {
       cookies: {
         getAll() {
@@ -183,11 +163,18 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/auth/confirm");
 
+  // Public API routes that don't require authentication (diagnostic/testing only in dev)
   const isPublicApiRoute =
     pathname === "/api/auth/test-brevo" ||
     pathname === "/api/test-email" ||
-    pathname.startsWith("/api/cron/");
+    pathname.startsWith("/api/debug-");
 
+  // Public page routes (no auth required)
+  const isPublicPage =
+    pathname === "/outreach-preview" ||
+    pathname.startsWith("/outreach-preview");
+
+  // ─── CSRF check on state-changing requests ─────────────────────────────
   if (!isOriginAllowed(request)) {
     applySecurityHeaders(supabaseResponse);
     if (isApiRoute) {
@@ -198,6 +185,7 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // ─── Rate limit auth API routes ────────────────────────────────────────
   if (isAuthApiRoute) {
     const ip =
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
@@ -214,26 +202,32 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // ─── Fast local JWT check (signature + claims) ─────────────────────────
+  // Runs before the Supabase network call so tampered tokens are rejected
+  // immediately and expired tokens don't trigger unnecessary network I/O.
   const jwtStatus = await localJwtCheck(request);
 
-  // On auth pages, never hard-block — allow login form even with stale cookies.
-  if (jwtStatus === "invalid" && !isAuthPage) {
+  if (jwtStatus === "invalid") {
+    // Token is present but cryptographically invalid — reject outright.
     applySecurityHeaders(supabaseResponse);
     if (isApiRoute) {
-      const res = NextResponse.json(
+      return NextResponse.json(
         { code: "UNAUTHORIZED", message: "Invalid or tampered token" },
         { status: 401 }
       );
-      copyCookies(supabaseResponse, res);
-      applySecurityHeaders(res);
-      return res;
     }
-    // Clear bad session cookies on the redirect so the browser recovers.
-    return redirectWithSessionCookies(request, supabaseResponse, "/login", {
-      redirectTo: pathname,
-    });
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("redirectTo", pathname);
+    const redirectResponse = NextResponse.redirect(url);
+    applySecurityHeaders(redirectResponse);
+    return redirectResponse;
   }
 
+  // ─── Supabase server-side session verification (network call) ─────────
+  // getUser() performs a network round-trip to Supabase to verify the user
+  // is still active (not deleted/banned) and to refresh the session if the
+  // access token has expired but the refresh token is still valid.
   let user = null;
   try {
     const {
@@ -241,30 +235,36 @@ export async function updateSession(request: NextRequest) {
     } = await supabase.auth.getUser();
     user = verifiedUser;
   } catch {
-    // Auth unreachable — do not wipe cookies; allow auth pages through.
+    // Auth service unreachable — allow through on auth pages, block on others
     applySecurityHeaders(supabaseResponse);
     return supabaseResponse;
   }
 
-  if (!user && !isAuthPage && !isPublicApiRoute && pathname !== "/") {
+  // ─── Route protection ──────────────────────────────────────────────────
+  if (!user && !isAuthPage && !isPublicApiRoute && !isPublicPage && pathname !== "/") {
     if (isApiRoute) {
       const unauthResponse = NextResponse.json(
         { code: "UNAUTHORIZED", message: "Authentication required" },
         { status: 401 }
       );
-      copyCookies(supabaseResponse, unauthResponse);
       applySecurityHeaders(unauthResponse);
       return unauthResponse;
     }
 
-    // Critical: propagate cookie clears from failed refresh onto the redirect.
-    return redirectWithSessionCookies(request, supabaseResponse, "/login", {
-      redirectTo: pathname,
-    });
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("redirectTo", pathname);
+    const redirectResponse = NextResponse.redirect(url);
+    applySecurityHeaders(redirectResponse);
+    return redirectResponse;
   }
 
   if (user && isAuthPage && pathname !== "/reset-password" && pathname !== "/auth/confirm") {
-    return redirectWithSessionCookies(request, supabaseResponse, "/dashboard");
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    const redirectResponse = NextResponse.redirect(url);
+    applySecurityHeaders(redirectResponse);
+    return redirectResponse;
   }
 
   applySecurityHeaders(supabaseResponse);

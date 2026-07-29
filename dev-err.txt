@@ -1,0 +1,477 @@
+Warning: Custom Cache-Control headers detected for the following routes:
+  - /_next/static/:path*
+
+Setting a custom Cache-Control header can break Next.js development behavior.
+⚠ Turbopack's filesystem cache has been deleted because we previously detected an internal error in Turbopack. Builds or page loads may be slower as a result.
+⨯ ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  [90m26 |[0m   maxStackTotal,
+  [90m27 |[0m } [36mfrom[0m [32m"@/lib/linkedin/outreach-chart-utils"[0m;
+[31m[1m>[0m [90m28 |[0m [36mimport[0m { [33mLinkedInUploadButton[0m } [36mfrom[0m [32m"./upload-button"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m29 |[0m
+  [90m30 |[0m [36minterface[0m [33mOutreachControlRoomProps[0m {
+  [90m31 |[0m   initialData: [33mOutreachDashboardData[0m;
+
+
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] Uncaught Error: ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+    at <unknown> (Error: ./src/components/linkedin/outreach-control-room.tsx:28:1)
+    at <unknown> (https://nextjs.org/docs/messages/module-not-found)
+    at <unknown> (Error: (./src/components/linkedin/outreach-control-room.tsx:28:1)
+    at <unknown> (https://nextjs.org/docs/messages/module-not-found)
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+⨯ ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  [90m26 |[0m   maxStackTotal,
+  [90m27 |[0m } [36mfrom[0m [32m"@/lib/linkedin/outreach-chart-utils"[0m;
+[31m[1m>[0m [90m28 |[0m [36mimport[0m { [33mLinkedInUploadButton[0m } [36mfrom[0m [32m"./upload-button"[0m;
+  [90m   |[0m [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  [90m29 |[0m
+  [90m30 |[0m [36minterface[0m [33mOutreachControlRoomProps[0m {
+  [90m31 |[0m   initialData: [33mOutreachDashboardData[0m;
+
+
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] Uncaught Error: ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+    at <unknown> (Error: ./src/components/linkedin/outreach-control-room.tsx:28:1)
+    at <unknown> (https://nextjs.org/docs/messages/module-not-found)
+    at <unknown> (Error: (./src/components/linkedin/outreach-control-room.tsx:28:1)
+    at <unknown> (https://nextjs.org/docs/messages/module-not-found)
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 
+[browser] ./src/components/linkedin/outreach-control-room.tsx:28:1
+Module not found: Can't resolve './upload-button'
+  26 |   maxStackTotal,
+  27 | } from "@/lib/linkedin/outreach-chart-utils";
+> 28 | import { LinkedInUploadButton } from "./upload-button";
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  29 |
+  30 | interface OutreachControlRoomProps {
+  31 |   initialData: OutreachDashboardData;
+
+Import trace:
+  Server Component:
+    ./src/components/linkedin/outreach-control-room.tsx
+    ./src/app/(portal)/sales/linkedin/page.tsx
+
+https://nextjs.org/docs/messages/module-not-found 

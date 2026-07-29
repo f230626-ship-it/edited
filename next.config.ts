@@ -9,6 +9,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: ".",
+  },
   // Generate unique build ID for cache busting on each deployment
   generateBuildId: async () => {
     // Use timestamp for cache busting - ensures fresh deploys always get new assets
