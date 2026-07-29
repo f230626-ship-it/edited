@@ -9,6 +9,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  transpilePackages: ["es-toolkit", "tiny-invariant"],
   turbopack: {
     root: ".",
   },
@@ -36,16 +37,6 @@ const nextConfig: NextConfig = {
           {
             key: "Cache-Control",
             value: "no-cache, no-store, must-revalidate, max-age=0",
-          },
-        ],
-      },
-      {
-        // Allow caching of static assets with hashed filenames (Next.js automatically adds hashes)
-        source: "/_next/static/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
           },
         ],
       },

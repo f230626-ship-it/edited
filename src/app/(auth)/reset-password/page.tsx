@@ -18,7 +18,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { motion } from "framer-motion";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 // Supabase sends the user to this page with a hash fragment containing
 // the access_token and refresh_token. The @supabase/ssr library's
@@ -36,6 +36,8 @@ function ResetPasswordForm() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [tokenError, setTokenError] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     // Supabase appends error details as query params when the link is invalid
@@ -133,32 +135,52 @@ function ResetPasswordForm() {
 
       <div className="space-y-2">
         <Label htmlFor="password">New password</Label>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          disabled={isPending}
-          required
-          autoComplete="new-password"
-          placeholder="At least 12 characters"
-          className="bg-background/50"
-        />
+        <div className="relative">
+          <Input
+            id="password"
+            name="password"
+            type={showPassword ? "text" : "password"}
+            disabled={isPending}
+            required
+            autoComplete="new-password"
+            placeholder="At least 8 characters"
+            className="bg-background/50 pr-11"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            tabIndex={isPending ? -1 : undefined}
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
         <p className="text-xs text-muted-foreground">
-          Must be 12+ characters with uppercase, lowercase, number, and symbol.
+          Must be 8+ characters with uppercase, lowercase, number, and symbol.
         </p>
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="confirmPassword">Confirm new password</Label>
-        <Input
-          id="confirmPassword"
-          name="confirmPassword"
-          type="password"
-          disabled={isPending}
-          required
-          autoComplete="new-password"
-          className="bg-background/50"
-        />
+        <div className="relative">
+          <Input
+            id="confirmPassword"
+            name="confirmPassword"
+            type={showConfirmPassword ? "text" : "password"}
+            disabled={isPending}
+            required
+            autoComplete="new-password"
+            className="bg-background/50 pr-11"
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+            tabIndex={isPending ? -1 : undefined}
+          >
+            {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
 
       <Button type="submit" className="w-full" disabled={isPending}>

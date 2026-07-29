@@ -72,13 +72,31 @@ export function parseCSV(csvContent: string): Record<string, any>[] {
     return [];
   }
 
+  // Find header row: some LinkedIn exports (like Connections.csv) have "Notes:" rows at the top.
+  let headerIndex = 0;
+  const knownHeaders = [
+    'first name', 'last name', 'email address', 'company', 'position', 'connected on',
+    'company name', 'title', 'name', 'skill name', 'school name', 'degree name',
+    'direction', 'from', 'to', 'sent at', 'course title', 'event name', 'media type'
+  ];
+  
+  for (let i = 0; i < Math.min(10, lines.length); i++) {
+    const parsed = parseCSVLine(lines[i]).map(h => h.toLowerCase().trim());
+    const hasKnownHeader = parsed.some(h => knownHeaders.includes(h));
+    
+    if (hasKnownHeader) {
+      headerIndex = i;
+      break;
+    }
+  }
+
   // Parse header
-  const headers = parseCSVLine(lines[0]);
+  const headers = parseCSVLine(lines[headerIndex]);
   
   // Parse data rows
   const data: Record<string, any>[] = [];
   
-  for (let i = 1; i < lines.length; i++) {
+  for (let i = headerIndex + 1; i < lines.length; i++) {
     const values = parseCSVLine(lines[i]);
     
     if (values.length === headers.length) {

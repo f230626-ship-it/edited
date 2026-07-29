@@ -100,13 +100,13 @@ function axisProps() {
   return {
     tickLine: false as const,
     axisLine: false as const,
-    tick: { fontSize: 11, fill: "#94a3b8" },
+    tick: { fontSize: 11, fill: "var(--outreach-axis)" },
   };
 }
 
 function gridEl() {
   return (
-    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148,163,184,0.12)" />
+    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--outreach-grid)" />
   );
 }
 
@@ -171,12 +171,12 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-[340px] flex-col rounded-2xl border border-white/[0.06] bg-[#161f2e] p-6 shadow-md">
+    <div className="flex h-[340px] flex-col rounded-2xl border border-border bg-white p-6 shadow-md dark:border-white/[0.06] dark:bg-[#161f2e]">
       <div className="shrink-0 pb-4">
-        <h3 className="text-sm font-bold tracking-tight text-white">{title}</h3>
-        <p className="mt-0.5 text-xs leading-snug text-slate-400">{description}</p>
+        <h3 className="text-sm font-bold tracking-tight text-foreground dark:text-white">{title}</h3>
+        <p className="mt-0.5 text-xs leading-snug text-muted-foreground dark:text-slate-400">{description}</p>
         {legend && legend.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs font-medium text-slate-400">
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs font-medium text-muted-foreground dark:text-slate-400">
             {legend.map((item) => (
               <span key={item.label} className="flex items-center gap-1.5">
                 <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: item.color }} />
@@ -349,7 +349,7 @@ export function ProfileIntelligenceDashboard({
         {KPI_DEFS.map((kpi) => (
           <div
             key={kpi.key}
-            className="flex flex-col justify-between rounded-2xl border border-white/[0.06] bg-[#161f2e] p-5 shadow-md"
+            className="flex flex-col justify-between rounded-2xl border border-border bg-white p-5 shadow-md dark:border-white/[0.06] dark:bg-[#161f2e]"
           >
             <span
               className="text-[10px] font-bold uppercase tracking-[0.14em]"
@@ -363,7 +363,7 @@ export function ProfileIntelligenceDashboard({
             >
               {kpiDisplay(kpi.key, kpi.suffix)}
             </span>
-            <span className="mt-2 text-[11px] text-slate-500">
+            <span className="mt-2 text-[11px] text-muted-foreground dark:text-slate-500">
               over selected window
             </span>
           </div>
@@ -467,26 +467,26 @@ export function ProfileIntelligenceDashboard({
       </div>
 
       {/* ── 6. FOOTER ── */}
-      <div className="space-y-4 rounded-2xl border border-white/[0.06] bg-[#161f2e] p-6 shadow-md">
-        <h4 className="text-sm font-bold tracking-tight text-white">
+      <div className="space-y-4 rounded-2xl border border-border bg-white p-6 shadow-md dark:border-white/[0.06] dark:bg-[#161f2e]">
+        <h4 className="text-sm font-bold tracking-tight text-foreground dark:text-white">
           How these numbers are computed
         </h4>
-        <div className="space-y-3 text-xs leading-relaxed text-slate-400">
+        <div className="space-y-3 text-xs leading-relaxed text-muted-foreground dark:text-slate-400">
           <p>
-            <strong className="font-semibold text-slate-200">Invites Sent</strong> and{" "}
-            <strong className="font-semibold text-slate-200">connections made</strong> come directly from your LinkedIn{" "}
-            <code className="text-amber-400/80">Invitations.csv</code> and{" "}
-            <code className="text-amber-400/80">Connections.csv</code> exports.{" "}
-            <strong className="font-semibold text-slate-200">Acceptance rate</strong> divides connections made by invites
+            <strong className="font-semibold text-foreground/80 dark:text-slate-200">Invites Sent</strong> and{" "}
+            <strong className="font-semibold text-foreground/80 dark:text-slate-200">connections made</strong> come directly from your LinkedIn{" "}
+            <code className="text-amber-600 dark:text-amber-400/80">Invitations.csv</code> and{" "}
+            <code className="text-amber-600 dark:text-amber-400/80">Connections.csv</code> exports.{" "}
+            <strong className="font-semibold text-foreground/80 dark:text-slate-200">Acceptance rate</strong> divides connections made by invites
             sent within the same period — LinkedIn&apos;s export doesn&apos;t link a specific invite to the connection it
             produced, so treat this as a directional trend rather than an exact per-invite rate.
           </p>
           <p>
-            <strong className="font-semibold text-slate-200">Messages, follow-ups, and replies</strong> require daily
+            <strong className="font-semibold text-foreground/80 dark:text-slate-200">Messages, follow-ups, and replies</strong> require daily
             CRM activity logs which are entered separately under Sales → Daily Log. The charts above show invite and
             connection data from your ZIP export only.
           </p>
-          <p className="pt-1 text-[11px] text-slate-500">
+          <p className="pt-1 text-[11px] text-muted-foreground dark:text-slate-500">
             Last import: <span className="font-mono">{data.import.filename}</span> —{" "}
             {data.import.completed_at
               ? new Date(data.import.completed_at).toLocaleDateString()

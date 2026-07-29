@@ -1,10 +1,10 @@
 import { z } from "zod";
 
-const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{12,}$/;
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,}$/;
 
 export const passwordSchema = z
   .string()
-  .min(12, "Password must be at least 12 characters long")
+  .min(8, "Password must be at least 8 characters long")
   .regex(
     passwordRegex,
     "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character"

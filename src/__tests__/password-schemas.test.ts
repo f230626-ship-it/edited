@@ -20,13 +20,13 @@ import {
 // ─── passwordSchema ────────────────────────────────────────────────────────
 
 describe("passwordSchema", () => {
-  test("accepts a strong password: 12+ chars with upper/lower/number/symbol", () => {
+  test("accepts a strong password: 8+ chars with upper/lower/number/symbol", () => {
     const result = passwordSchema.safeParse("SecureP@ss123");
     expect(result.success).toBe(true);
   });
 
-  test("accepts exactly 12 characters with all requirements", () => {
-    const result = passwordSchema.safeParse("Aa1@bcdefghi");
+  test("accepts exactly 8 characters with all requirements", () => {
+    const result = passwordSchema.safeParse("Aa1@bcde");
     expect(result.success).toBe(true);
   });
 
@@ -35,11 +35,11 @@ describe("passwordSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  test("rejects a password shorter than 12 characters", () => {
-    const result = passwordSchema.safeParse("Short1@");
+  test("rejects a password shorter than 8 characters", () => {
+    const result = passwordSchema.safeParse("Sh1@rt");
     expect(result.success).toBe(false);
     if (result.success) return;
-    expect(result.error.issues[0].message).toContain("at least 12 characters");
+    expect(result.error.issues[0].message).toContain("at least 8 characters");
   });
 
   test("rejects a password missing uppercase letter", () => {

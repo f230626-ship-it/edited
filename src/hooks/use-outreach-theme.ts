@@ -14,13 +14,13 @@ export interface OutreachThemeColors {
 }
 
 const FALLBACK: OutreachThemeColors = {
-  accent: "#d97706",
-  teal: "#0d9488",
-  purple: "#7c3aed",
-  rose: "#e11d48",
-  grid: "#e2e8f0",
-  axis: "#64748b",
-  accentForeground: "#0f172a",
+  accent: "#f59e0b",
+  teal: "#14B8A6",
+  purple: "#8B5CF6",
+  rose: "#F43F5E",
+  grid: "rgba(148,163,184,0.12)",
+  axis: "#94a3b8",
+  accentForeground: "#f1f5f9",
 };
 
 const CSS_VAR_MAP: Record<keyof OutreachThemeColors, string> = {
