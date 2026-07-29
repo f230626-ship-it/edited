@@ -212,6 +212,8 @@ export interface AuditLog {
   created_at: string;
 }
 
+export type ProjectSource = "manual" | "sheet_sync" | "excel_import";
+
 export interface Project {
   id: string;
   name: string;
@@ -238,10 +240,15 @@ export interface Project {
   priority?: "Low" | "Medium" | "High";
   progress_percentage?: number;
   project_type?: string | null;
+  business_model?: string | null;
   payment_structure?: string | null;
   project_rate?: string | null;
   expected_monthly_revenue?: number | null;
   profile_name?: string | null;
+  assigned_bd_label?: string | null;
+  assigned_resource_label?: string | null;
+  source?: ProjectSource | null;
+  external_row_hash?: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -412,6 +419,54 @@ export interface SalesActivityLog {
   metadata: Record<string, unknown> | null;
   created_at: string;
   user?: Pick<Employee, "id" | "full_name" | "email">;
+}
+
+export type IcpFilterSource = "manual" | "sheet_sync" | "excel_import";
+
+export interface IcpFilter {
+  id: string;
+  profile_name: string;
+  sales_profile_id: string | null;
+  filter_date_raw: string | null;
+  filter_date: string | null;
+  period_year: number | null;
+  period_month: number | null;
+  period_week: number | null;
+  company_headcount: string | null;
+  past_companies: string | null;
+  regions: string | null;
+  job_titles: string | null;
+  industry: string | null;
+  years_experience: string | null;
+  projects_closed: string | null;
+  notes: string | null;
+  source: IcpFilterSource;
+  external_row_hash: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IcpFilterSyncMeta {
+  id: string;
+  google_sheet_id: string | null;
+  sheet_tab_name: string | null;
+  last_synced_at: string | null;
+  last_sync_status: string | null;
+  last_sync_message: string | null;
+  last_sync_count: number | null;
+  updated_at: string;
+}
+
+export interface ProjectSyncMeta {
+  id: string;
+  google_sheet_id: string | null;
+  sheet_tab_name: string | null;
+  last_synced_at: string | null;
+  last_sync_status: string | null;
+  last_sync_message: string | null;
+  last_sync_count: number | null;
+  updated_at: string;
 }
 
 export interface WeeklyReport {

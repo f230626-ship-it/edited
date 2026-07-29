@@ -138,7 +138,9 @@ export async function bulkImportProjects(payload: Record<string, unknown>[]) {
     "description", "industry", "bd_id", "lead_source", "closing_developer_id",
     "manager_id", "value", "currency", "is_monthly_retainer", "retainer_amount",
     "expected_profit", "payment_status", "start_date", "expected_delivery_date",
-    "actual_delivery_date", "status",
+    "actual_delivery_date", "status", "priority", "progress_percentage",
+    "project_type", "payment_structure", "project_rate", "expected_monthly_revenue",
+    "profile_name", "business_model", "assigned_bd_label", "assigned_resource_label",
   ];
 
   let successCount = 0;
@@ -166,6 +168,7 @@ export async function bulkImportProjects(payload: Record<string, unknown>[]) {
     projectData.payment_status = projectData.payment_status || "Pending";
     projectData.status = projectData.status || "Lead Won";
     projectData.value = Number(projectData.value) || 0;
+    projectData.source = "excel_import";
 
     if (!projectData.start_date) {
       projectData.start_date = new Date().toISOString().split("T")[0];

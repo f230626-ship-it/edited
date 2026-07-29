@@ -57,7 +57,7 @@ async function mintToken(overrides: {
     payload = {},
     expiresInSec = 900,
     notBeforeSec,
-    issuer = SUPABASE_URL,
+    issuer = `${SUPABASE_URL}/auth/v1`,
     audience = "authenticated",
     useWrongKey = false,
   } = overrides;

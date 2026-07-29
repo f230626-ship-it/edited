@@ -29,12 +29,12 @@ async function localJwtValid(): Promise<boolean> {
       // Only hard-reject on definitive cryptographic failures.
       // JWKS_ERROR / UNKNOWN / MISSING_CONFIG = network issue → fail open
       // so a transient JWKS fetch failure doesn't log users out.
-      const hardFailures = ["EXPIRED", "INVALID_SIGNATURE", "INVALID_AUDIENCE", "INVALID_ISSUER", "NOT_YET_VALID"];
+      const hardFailures = ["INVALID_SIGNATURE", "INVALID_AUDIENCE", "INVALID_ISSUER"];
       if (hardFailures.includes(result.reason)) {
         console.warn("[jwt] Server action local verify failed:", result.reason);
         return false;
       }
-      return true; // network/config error — let Supabase getUser() decide
+      return true; // EXPIRED / JWKS / etc — let Supabase getUser() refresh
     }
     return true;
   } catch {
