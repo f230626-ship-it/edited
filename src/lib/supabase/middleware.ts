@@ -128,9 +128,12 @@ async function localJwtCheck(
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder";
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    key,
     {
       cookies: {
         getAll() {
@@ -163,7 +166,13 @@ export async function updateSession(request: NextRequest) {
   // Public API routes that don't require authentication (diagnostic/testing only in dev)
   const isPublicApiRoute =
     pathname === "/api/auth/test-brevo" ||
-    pathname === "/api/test-email";
+    pathname === "/api/test-email" ||
+    pathname.startsWith("/api/debug-");
+
+  // Public page routes (no auth required)
+  const isPublicPage =
+    pathname === "/outreach-preview" ||
+    pathname.startsWith("/outreach-preview");
 
   // ─── CSRF check on state-changing requests ─────────────────────────────
   if (!isOriginAllowed(request)) {
@@ -232,7 +241,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // ─── Route protection ──────────────────────────────────────────────────
-  if (!user && !isAuthPage && !isPublicApiRoute && pathname !== "/") {
+  if (!user && !isAuthPage && !isPublicApiRoute && !isPublicPage && pathname !== "/") {
     if (isApiRoute) {
       const unauthResponse = NextResponse.json(
         { code: "UNAUTHORIZED", message: "Authentication required" },

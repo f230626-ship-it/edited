@@ -22,6 +22,7 @@ const DATASET_PATTERNS: Record<LinkedInDatasetType, RegExp[]> = {
   education: [/^education\.csv$/i, /^Education\.csv$/],
   certifications: [/^certifications\.csv$/i, /^Certifications\.csv$/],
   invitations: [/^invitations\.csv$/i, /^Invitations\.csv$/],
+  connections: [/^connections\.csv$/i, /^Connections\.csv$/],
   company_follows: [
     /^company.*follows?\.csv$/i,
     /^Company Follows\.csv$/,
@@ -43,9 +44,12 @@ const DATASET_PATTERNS: Record<LinkedInDatasetType, RegExp[]> = {
 export function detectDatasetType(filename: string): LinkedInDatasetType {
   const normalizedFilename = filename.trim();
 
+  // Extract basename for subdirectory support (e.g., "Takeout/LinkedIn/Data/Profile.csv")
+  const basename = normalizedFilename.replace(/^.*[/\\]/, '').trim();
+
   for (const [type, patterns] of Object.entries(DATASET_PATTERNS)) {
     for (const pattern of patterns) {
-      if (pattern.test(normalizedFilename)) {
+      if (pattern.test(normalizedFilename) || pattern.test(basename)) {
         return type as LinkedInDatasetType;
       }
     }
@@ -126,6 +130,35 @@ function parseCSVLine(line: string): string[] {
 }
 
 // ============================================================================
+// Flexible Column Picking
+// ============================================================================
+
+function pickColumn(row: Record<string, any>, candidates: string[]): any {
+  const rowKeys = Object.keys(row);
+  // First pass: exact match (case-insensitive)
+  for (const candidate of candidates) {
+    const match = rowKeys.find((k) => k.toLowerCase() === candidate.toLowerCase());
+    if (match !== undefined) {
+      const val = row[match];
+      if (val !== null && val !== undefined && val !== '') return val;
+    }
+  }
+  // Second pass: substring match (case-insensitive)
+  for (const candidate of candidates) {
+    const lowerCandidate = candidate.toLowerCase().trim();
+    const match = rowKeys.find((k) => {
+      const lowerKey = k.toLowerCase().trim();
+      return lowerKey.includes(lowerCandidate);
+    });
+    if (match !== undefined) {
+      const val = row[match];
+      if (val !== null && val !== undefined && val !== '') return val;
+    }
+  }
+  return null;
+}
+
+// ============================================================================
 // Data Normalization
 // ============================================================================
 
@@ -135,17 +168,27 @@ function parseCSVLine(line: string): string[] {
 export function normalizeDate(dateStr: string | null | undefined): string | null {
   if (!dateStr) return null;
 
-  // LinkedIn date formats:
-  // "YYYY-MM-DD"
-  // "MM/DD/YYYY"
-  // "Month YYYY"
-  // "YYYY"
-
   const str = dateStr.trim();
 
-  // Already ISO format
+  // YYYY-MM-DD (already ISO)
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
     return str;
+  }
+
+  // MM/DD/YYYY HH:MM (LinkedIn invitations "Sent At")
+  const mdyTimeMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+\d{2}:\d{2}/);
+  if (mdyTimeMatch) {
+    const [, month, day, year] = mdyTimeMatch;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // MM/DD/YY, H:MM AM/PM (LinkedIn invitations "Sent At" with 2-digit year)
+  const mdyShortTimeMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}),\s+\d{1,2}:\d{2}\s+(?:AM|PM|am|pm)$/);
+  if (mdyShortTimeMatch) {
+    const [, month, day, shortYear] = mdyShortTimeMatch;
+    const yearNum = parseInt(shortYear, 10);
+    const fullYear = yearNum >= 70 ? 1900 + yearNum : 2000 + yearNum;
+    return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
   }
 
   // MM/DD/YYYY
@@ -153,6 +196,35 @@ export function normalizeDate(dateStr: string | null | undefined): string | null
   if (mdyMatch) {
     const [, month, day, year] = mdyMatch;
     return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // MM/DD/YY
+  const mdyShortMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+  if (mdyShortMatch) {
+    const [, month, day, shortYear] = mdyShortMatch;
+    const yearNum = parseInt(shortYear, 10);
+    const fullYear = yearNum >= 70 ? 1900 + yearNum : 2000 + yearNum;
+    return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+
+  // DD Mon YYYY (LinkedIn connections "Connected On": "22 Jul 2026")
+  const dmyMatch = str.match(/^(\d{1,2})\s+(\w+)\s+(\d{4})$/);
+  if (dmyMatch) {
+    const [, day, monthName, year] = dmyMatch;
+    const month = getMonthNumber(monthName);
+    if (month) {
+      return `${year}-${month}-${day.padStart(2, '0')}`;
+    }
+  }
+
+  // Mon DD, YYYY ("Jul 22, 2026")
+  const mdCommaYMatch = str.match(/^(\w+)\s+(\d{1,2}),\s*(\d{4})$/);
+  if (mdCommaYMatch) {
+    const [, monthName, day, year] = mdCommaYMatch;
+    const month = getMonthNumber(monthName);
+    if (month) {
+      return `${year}-${month}-${day.padStart(2, '0')}`;
+    }
   }
 
   // Month YYYY (e.g., "January 2020")
@@ -175,18 +247,18 @@ export function normalizeDate(dateStr: string | null | undefined): string | null
 
 function getMonthNumber(monthName: string): string | null {
   const months: Record<string, string> = {
-    january: '01',
-    february: '02',
-    march: '03',
-    april: '04',
+    jan: '01', january: '01',
+    feb: '02', february: '02',
+    mar: '03', march: '03',
+    apr: '04', april: '04',
     may: '05',
-    june: '06',
-    july: '07',
-    august: '08',
-    september: '09',
-    october: '10',
-    november: '11',
-    december: '12',
+    jun: '06', june: '06',
+    jul: '07', july: '07',
+    aug: '08', august: '08',
+    sep: '09', september: '09',
+    oct: '10', october: '10',
+    nov: '11', november: '11',
+    dec: '12', december: '12',
   };
 
   return months[monthName.toLowerCase()] || null;
@@ -217,19 +289,19 @@ export function parseProfileData(data: Record<string, any>[]): any | null {
   const row = data[0]; // Profile CSV typically has one row
 
   return {
-    first_name: row['First Name'] || row['firstName'] || null,
-    last_name: row['Last Name'] || row['lastName'] || null,
-    maiden_name: row['Maiden Name'] || row['maidenName'] || null,
-    headline: row['Headline'] || row['headline'] || null,
-    summary: row['Summary'] || row['summary'] || null,
-    industry: row['Industry'] || row['industry'] || null,
-    location: row['Location'] || row['location'] || null,
-    country: row['Country'] || row['country'] || null,
-    zip_code: row['Zip Code'] || row['zipCode'] || null,
-    geo_location: row['Geo Location'] || row['geoLocation'] || null,
-    birth_date: normalizeDate(row['Birth Date'] || row['birthDate']),
-    websites: parseArray(row['Websites'] || row['websites']),
-    twitter_handles: parseArray(row['Twitter Handles'] || row['twitterHandles']),
+    first_name: pickColumn(row, ['First Name', 'first_name', 'FirstName', 'first', 'Given Name', 'First', 'Name']),
+    last_name: pickColumn(row, ['Last Name', 'last_name', 'LastName', 'last', 'Family Name', 'Surname', 'Last']),
+    maiden_name: pickColumn(row, ['Maiden Name', 'maiden_name', 'MaidenName', 'maiden']),
+    headline: pickColumn(row, ['Headline', 'headline']),
+    summary: pickColumn(row, ['Summary', 'summary']),
+    industry: pickColumn(row, ['Industry', 'industry']),
+    location: pickColumn(row, ['Location', 'location']),
+    country: pickColumn(row, ['Country', 'country']),
+    zip_code: pickColumn(row, ['Zip Code', 'zip_code', 'zipCode']),
+    geo_location: pickColumn(row, ['Geo Location', 'geo_location', 'geoLocation']),
+    birth_date: normalizeDate(pickColumn(row, ['Birth Date', 'birth_date', 'birthDate'])),
+    websites: parseArray(pickColumn(row, ['Websites', 'websites']) || ''),
+    twitter_handles: parseArray(pickColumn(row, ['Twitter Handles', 'twitter_handles', 'twitterHandles']) || ''),
   };
 }
 
@@ -317,13 +389,37 @@ export function parseCertificationsData(data: Record<string, any>[]): any[] {
  * Parse Invitations CSV
  */
 export function parseInvitationsData(data: Record<string, any>[]): any[] {
-  return data.map((row) => ({
-    direction: (row['Direction'] || row['direction'] || 'OUTGOING').toUpperCase() as 'INCOMING' | 'OUTGOING',
-    first_name: row['First Name'] || row['firstName'] || null,
-    last_name: row['Last Name'] || row['lastName'] || null,
-    invitation_date: normalizeDate(row['Sent At'] || row['sentAt'] || row['Date']),
-    message: row['Message'] || row['message'] || null,
-  }));
+  if (data.length > 0) {
+    console.log("[parseInvitationsData] CSV headers:", Object.keys(data[0]));
+    console.log("[parseInvitationsData] first row sample:", JSON.stringify(data[0]));
+  }
+  return data.map((row) => {
+    const direction = (pickColumn(row, ['Direction', 'direction', 'dir', 'Dir', 'Invitation Direction'])?.toUpperCase() || 'OUTGOING') as 'INCOMING' | 'OUTGOING';
+
+    // Extract target person's name based on direction
+    // OUTGOING: target is in 'To' column, INCOMING: target is in 'From' column
+    let first_name: string | null = null;
+    let last_name: string | null = null;
+    const fullName = pickColumn(row, direction === 'OUTGOING' ? ['To', 'to'] : ['From', 'from']);
+    if (fullName && typeof fullName === 'string') {
+      const trimmed = fullName.trim();
+      const spaceIdx = trimmed.indexOf(' ');
+      if (spaceIdx > 0) {
+        first_name = trimmed.substring(0, spaceIdx).trim() || null;
+        last_name = trimmed.substring(spaceIdx + 1).trim() || null;
+      } else {
+        first_name = trimmed || null;
+      }
+    }
+
+    return {
+      direction,
+      first_name,
+      last_name,
+      invitation_date: normalizeDate(pickColumn(row, ['Sent At', 'Sent On', 'sentAt', 'sentOn', 'Date', 'date', 'Invitation Date', 'InvitationDate', 'Date Sent', 'Created On', 'Created', 'Sent', 'Invited On', 'Invitation Sent', 'Invitation Created'])),
+      message: pickColumn(row, ['Message', 'message', 'Note', 'note', 'Notes', 'Custom Message', 'Invitation Note']),
+    };
+  });
 }
 
 /**
@@ -368,6 +464,24 @@ export function parseJobApplicationsData(data: Record<string, any>[]): any[] {
     job_title: row['Job Title'] || row['jobTitle'] || row['Title'] || null,
     application_date: normalizeDate(row['Application Date'] || row['applicationDate'] || row['Applied On'] || row['Date']),
     status: row['Status'] || row['status'] || null,
+  }));
+}
+
+/**
+ * Parse Connections CSV
+ */
+export function parseConnectionsData(data: Record<string, any>[]): any[] {
+  if (data.length > 0) {
+    console.log("[parseConnectionsData] CSV headers:", Object.keys(data[0]));
+    console.log("[parseConnectionsData] first row sample:", JSON.stringify(data[0]));
+  }
+  return data.map((row) => ({
+    first_name: pickColumn(row, ['First Name', 'first_name', 'FirstName', 'first', 'Given Name', 'First', 'Name']),
+    last_name: pickColumn(row, ['Last Name', 'last_name', 'LastName', 'last', 'Family Name', 'Surname', 'Last']),
+    email_address: pickColumn(row, ['Email Address', 'email_address', 'Email', 'E-mail Address', 'E-mail', 'email']),
+    company: pickColumn(row, ['Company', 'company', 'Organization', 'organisation']),
+    position: pickColumn(row, ['Position', 'position', 'Title', 'Job Title', 'job-title']),
+    connected_on: normalizeDate(pickColumn(row, ['Connected On', 'ConnectedOn', 'connected_on', 'Date', 'Connection Date', 'Connected Date', 'Connected'])),
   }));
 }
 

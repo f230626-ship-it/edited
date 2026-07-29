@@ -90,33 +90,40 @@ export function buildPasswordResetEmail(
 <!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 16px">
     <tr><td align="center">
-      <table width="100%" style="max-width:480px;background:#111;border:1px solid #222;border-radius:12px;overflow:hidden">
-        <tr><td style="padding:32px 32px 24px;text-align:center;border-bottom:1px solid #1a1a1a">
-          <span style="font-size:20px;font-weight:700;color:#fff">${appName}</span>
+      <table width="100%" style="max-width:480px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">
+        <tr><td style="padding:32px 32px 16px;text-align:center">
+          <img src="${appUrl}/images/mindvista-official-logo-light.png" alt="${appName}" width="160" style="max-width:160px;height:auto;border:none;outline:none" />
         </td></tr>
-        <tr><td style="padding:32px">
-          <h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#fff">Reset your password</h1>
-          <p style="margin:0 0 24px;font-size:15px;color:#999;line-height:1.6">
-            We received a request to reset the password for your account.
-            Click the button below to choose a new password.
-            This link expires in <strong style="color:#ccc">15 minutes</strong>.
-          </p>
-          <a href="${resetUrl}"
-             style="display:inline-block;padding:12px 28px;background:#6366f1;color:#fff;
-                    font-size:15px;font-weight:600;text-decoration:none;border-radius:8px">
-            Reset password
-          </a>
-          <p style="margin:24px 0 0;font-size:13px;color:#666">
-            Or copy this URL into your browser:<br>
-            <span style="word-break:break-all;color:#888">${resetUrl}</span>
+        <tr><td style="padding:0 32px 24px;text-align:center">
+          <h1 style="margin:0 0 8px;font-size:24px;font-weight:700;color:#0f172a">Reset Your Password</h1>
+          <p style="margin:0;font-size:15px;color:#475569;line-height:1.6">
+            We received a request to reset your ${appName} password.
           </p>
         </td></tr>
-        <tr><td style="padding:20px 32px;border-top:1px solid #1a1a1a;text-align:center">
-          <p style="margin:0;font-size:12px;color:#555">
-            If you didn't request a password reset, ignore this email — your password won't change.
+        <tr><td style="padding:0 32px">
+          <p style="margin:0 0 24px;font-size:15px;color:#475569;line-height:1.6">
+            Click the button below to create a new password.
+          </p>
+          <div style="text-align:center;margin:0 0 24px">
+            <a href="${resetUrl}"
+               style="display:inline-block;padding:14px 32px;background:#f59e0b;color:#0f172a;
+                      font-size:15px;font-weight:700;text-decoration:none;border-radius:8px">
+              Reset Password
+            </a>
+          </div>
+          <p style="margin:0 0 32px;font-size:14px;color:#64748b;line-height:1.5">
+            If you didn't request this, you can safely ignore this email.
+          </p>
+        </td></tr>
+        <tr><td style="padding:20px 32px;border-top:1px solid #e2e8f0;text-align:center">
+          <p style="margin:0;font-size:13px;color:#94a3b8;font-weight:600">
+            ${appName}
+          </p>
+          <p style="margin:4px 0 0;font-size:11px;color:#cbd5e1">
+            Automated Security Notification
           </p>
         </td></tr>
       </table>

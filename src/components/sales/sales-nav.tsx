@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   ClipboardList,
@@ -17,6 +18,7 @@ import {
   BarChart3,
   Bell,
   Shield,
+  Link2,
 } from "lucide-react";
 
 const repLinks = [
@@ -25,6 +27,7 @@ const repLinks = [
   { href: "/sales/leads", label: "My Leads", icon: UserCheck },
   { href: "/sales/meetings", label: "Meetings", icon: CalendarDays },
   { href: "/sales/history", label: "Log History", icon: History },
+  { href: "/sales/linkedin", label: "LinkedIn", icon: Link2 },
 ];
 
 const ownerLinks = [
@@ -37,17 +40,20 @@ const ownerLinks = [
   { href: "/sales/weekly", label: "Weekly Report", icon: FileBarChart },
   { href: "/sales/history", label: "Log History", icon: History },
   { href: "/sales/my-day", label: "Daily Log", icon: ClipboardList },
+  { href: "/sales/linkedin", label: "LinkedIn", icon: Link2 },
 ];
 
 export function SalesNav({ isOwner }: { isOwner: boolean }) {
   const pathname = usePathname();
-  const links = isOwner ? ownerLinks : repLinks;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const links = !mounted ? repLinks : (isOwner ? ownerLinks : repLinks);
 
   return (
     <nav className="flex flex-wrap gap-2">
       {links.map((link) => {
         const Icon = link.icon;
-        const active = pathname === link.href || pathname.startsWith(link.href + "/");
+        const active = mounted && (pathname === link.href || pathname.startsWith(link.href + "/"));
         return (
           <Link
             key={link.href}
@@ -64,7 +70,7 @@ export function SalesNav({ isOwner }: { isOwner: boolean }) {
           </Link>
         );
       })}
-      {isOwner && (
+      {mounted && isOwner && (
         <span className="ml-auto hidden items-center gap-1 text-xs text-muted-foreground sm:flex">
           <Settings2 className="h-3.5 w-3.5" />
           Owner view

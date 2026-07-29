@@ -9,11 +9,10 @@ export default async function NewEmployeePage() {
   const supabase = createAdminClient();
 
   const [{ data: departments }, { data: managers }] = await Promise.all([
-    supabase.from("departments").select("*").order("name"),
+    supabase.from("departments").select("*").neq("name", "Operations").order("name"),
     supabase
       .from("employees")
       .select("id, full_name, employee_code")
-      .in("role", ["admin"])
       .order("full_name"),
   ]);
 

@@ -54,10 +54,9 @@ const DEPARTMENT_CONFIGS: Record<"bd" | "engineering" | "admin", DepartmentConfi
   admin: {
     analyticsLabel: "Organization Analytics",
     title: "Company Performance Overview",
-    metricOrder: ["total_projects", "active_employees", "sales_progress", "engineering_progress"],
+    metricOrder: ["total_projects", "sales_progress", "engineering_progress"],
     metrics: {
       total_projects: { label: "Total Projects", key: "total_projects", color: "#3b82f6" },
-      active_employees: { label: "Active Employees", key: "active_employees", color: "#8b5cf6" },
       sales_progress: { label: "Sales Progress", key: "sales_progress", color: "#10b981", suffix: "%" },
       engineering_progress: { label: "Engineering Progress", key: "engineering_progress", color: "#ec4899", suffix: "%" },
     },

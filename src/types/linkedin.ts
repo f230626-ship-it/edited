@@ -27,6 +27,7 @@ export interface LinkedInSummary {
   total_certifications?: number;
   total_education?: number;
   total_invitations?: number;
+  total_connections?: number;
   total_companies_followed?: number;
   total_learning_courses?: number;
   total_events?: number;
@@ -220,6 +221,7 @@ export type LinkedInDatasetType =
   | 'education'
   | 'certifications'
   | 'invitations'
+  | 'connections'
   | 'company_follows'
   | 'learning'
   | 'events'

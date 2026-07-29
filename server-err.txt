@@ -1,0 +1,584 @@
+Warning: Custom Cache-Control headers detected for the following routes:
+  - /_next/static/:path*
+
+Setting a custom Cache-Control header can break Next.js development behavior.
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="intelligence/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+        <RedirectBoundary>
+          <RedirectErrorBoundary router={{...}}>
+            <InnerLayoutRouter url="/sales/lin..." tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} ...>
+              <SegmentViewNode type="page" pagePath="(portal)/s...">
+                <SegmentTrieNode>
+                <LinkedInIntelligencePage>
+                  <div className="w-full min...">
+                    <IntelligenceDashboard employeeId="2ff337a7-4..." data={{...}}>
+                      <div className="space-y-8 ...">
+                        <LinkedInSubnav>
+                          <div className="flex flex-...">
+                            <LinkComponent href="/sales/lin..." className="flex min-w...">
+                              <a
++                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+-                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+                                ref={function}
+                                onClick={function onClick}
+                                onMouseEnter={function onMouseEnter}
+                                onTouchStart={function onTouchStart}
+                                href="/sales/linkedin"
+                              >
+                                <span className="flex items...">
+                                  <ChartColumn className="h-4 w-4">
+                                    <svg
+                                      ref={null}
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width={24}
+                                      height={24}
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
++                                     className="lucide lucide-chart-column h-4 w-4"
+-                                     className="lucide lucide-chart-column h-4 w-4 text-slate-500"
+                                      aria-hidden="true"
+                                    >
+                                  ...
+                                <span
++                                 className="text-xs opacity-80"
+-                                 className="text-xs opacity-70"
+                                >
++                                 Invites, connections, messaging
+                            <LinkComponent href="/sales/lin..." className="flex min-w...">
+                              <a
++                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+-                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+                                ref={function}
+                                onClick={function onClick}
+                                onMouseEnter={function onMouseEnter}
+                                onTouchStart={function onTouchStart}
+                                href="/sales/linkedin/intelligence"
+                              >
+                                <span className="flex items...">
+                                  <UserSearch className="h-4 w-4 te...">
+                                    <svg
+                                      ref={null}
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width={24}
+                                      height={24}
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
++                                     className="lucide lucide-user-search h-4 w-4 text-primary"
+-                                     className="lucide lucide-user-search h-4 w-4 text-amber-400"
+                                      aria-hidden="true"
+                                    >
+                                  ...
+                                <span
++                                 className="text-xs opacity-80"
+-                                 className="text-xs opacity-70"
+                                >
++                                 {"Export analytics & recommendations"}
+                        ...
+              ...
+            ...
+ 
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="intelligence/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+        <RedirectBoundary>
+          <RedirectErrorBoundary router={{...}}>
+            <InnerLayoutRouter url="/sales/lin..." tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} ...>
+              <SegmentViewNode type="page" pagePath="(portal)/s...">
+                <SegmentTrieNode>
+                <LinkedInIntelligencePage>
+                  <div className="w-full min...">
+                    <IntelligenceDashboard employeeId="2ff337a7-4..." data={{...}}>
+                      <div className="space-y-8 ...">
+                        <LinkedInSubnav>
+                          <div className="flex flex-...">
+                            <LinkComponent href="/sales/lin..." className="flex min-w...">
+                              <a
++                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+-                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+                                ref={function}
+                                onClick={function onClick}
+                                onMouseEnter={function onMouseEnter}
+                                onTouchStart={function onTouchStart}
+                                href="/sales/linkedin"
+                              >
+                                <span className="flex items...">
+                                  <ChartColumn className="h-4 w-4">
+                                    <svg
+                                      ref={null}
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width={24}
+                                      height={24}
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
++                                     className="lucide lucide-chart-column h-4 w-4"
+-                                     className="lucide lucide-chart-column h-4 w-4 text-slate-500"
+                                      aria-hidden="true"
+                                    >
+                                  ...
+                                <span
++                                 className="text-xs opacity-80"
+-                                 className="text-xs opacity-70"
+                                >
++                                 Invites, connections, messaging
+                            <LinkComponent href="/sales/lin..." className="flex min-w...">
+                              <a
++                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+-                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+                                ref={function}
+                                onClick={function onClick}
+                                onMouseEnter={function onMouseEnter}
+                                onTouchStart={function onTouchStart}
+                                href="/sales/linkedin/intelligence"
+                              >
+                                <span className="flex items...">
+                                  <UserSearch className="h-4 w-4 te...">
+                                    <svg
+                                      ref={null}
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width={24}
+                                      height={24}
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
++                                     className="lucide lucide-user-search h-4 w-4 text-primary"
+-                                     className="lucide lucide-user-search h-4 w-4 text-amber-400"
+                                      aria-hidden="true"
+                                    >
+                                  ...
+                                <span
++                                 className="text-xs opacity-80"
+-                                 className="text-xs opacity-70"
+                                >
++                                 {"Export analytics & recommendations"}
+                        ...
+              ...
+            ...
+ 
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="intelligence/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+        <RedirectBoundary>
+          <RedirectErrorBoundary router={{...}}>
+            <InnerLayoutRouter url="/sales/lin..." tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} ...>
+              <SegmentViewNode type="page" pagePath="(portal)/s...">
+                <SegmentTrieNode>
+                <LinkedInIntelligencePage>
+                  <div className="w-full min...">
+                    <IntelligenceDashboard employeeId="2ff337a7-4..." data={{...}}>
+                      <div className="space-y-8 ...">
+                        <LinkedInSubnav>
+                          <div className="flex flex-...">
+                            <LinkComponent href="/sales/lin..." className="flex min-w...">
+                              <a
++                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+-                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+                                ref={function}
+                                onClick={function onClick}
+                                onMouseEnter={function onMouseEnter}
+                                onTouchStart={function onTouchStart}
+                                href="/sales/linkedin"
+                              >
+                                <span className="flex items...">
+                                  <ChartColumn className="h-4 w-4">
+                                    <svg
+                                      ref={null}
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width={24}
+                                      height={24}
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
++                                     className="lucide lucide-chart-column h-4 w-4"
+-                                     className="lucide lucide-chart-column h-4 w-4 text-slate-500"
+                                      aria-hidden="true"
+                                    >
+                                  ...
+                                <span
++                                 className="text-xs opacity-80"
+-                                 className="text-xs opacity-70"
+                                >
++                                 Invites, connections, messaging
+                            <LinkComponent href="/sales/lin..." className="flex min-w...">
+                              <a
++                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+-                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+                                ref={function}
+                                onClick={function onClick}
+                                onMouseEnter={function onMouseEnter}
+                                onTouchStart={function onTouchStart}
+                                href="/sales/linkedin/intelligence"
+                              >
+                                <span className="flex items...">
+                                  <UserSearch className="h-4 w-4 te...">
+                                    <svg
+                                      ref={null}
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width={24}
+                                      height={24}
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
++                                     className="lucide lucide-user-search h-4 w-4 text-primary"
+-                                     className="lucide lucide-user-search h-4 w-4 text-amber-400"
+                                      aria-hidden="true"
+                                    >
+                                  ...
+                                <span
++                                 className="text-xs opacity-80"
+-                                 className="text-xs opacity-70"
+                                >
++                                 {"Export analytics & recommendations"}
+                        ...
+              ...
+            ...
+ 
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="intelligence/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+        <RedirectBoundary>
+          <RedirectErrorBoundary router={{...}}>
+            <InnerLayoutRouter url="/sales/lin..." tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} ...>
+              <SegmentViewNode type="page" pagePath="(portal)/s...">
+                <SegmentTrieNode>
+                <LinkedInIntelligencePage>
+                  <div className="w-full min...">
+                    <IntelligenceDashboard employeeId="2ff337a7-4..." data={{...}}>
+                      <div className="space-y-8 ...">
+                        <LinkedInSubnav>
+                          <div className="flex flex-...">
+                            <LinkComponent href="/sales/lin..." className="flex min-w...">
+                              <a
++                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+-                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+                                ref={function}
+                                onClick={function onClick}
+                                onMouseEnter={function onMouseEnter}
+                                onTouchStart={function onTouchStart}
+                                href="/sales/linkedin"
+                              >
+                                <span className="flex items...">
+                                  <ChartColumn className="h-4 w-4">
+                                    <svg
+                                      ref={null}
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width={24}
+                                      height={24}
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
++                                     className="lucide lucide-chart-column h-4 w-4"
+-                                     className="lucide lucide-chart-column h-4 w-4 text-slate-500"
+                                      aria-hidden="true"
+                                    >
+                                  ...
+                                <span
++                                 className="text-xs opacity-80"
+-                                 className="text-xs opacity-70"
+                                >
++                                 Invites, connections, messaging
+                            <LinkComponent href="/sales/lin..." className="flex min-w...">
+                              <a
++                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+-                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+                                ref={function}
+                                onClick={function onClick}
+                                onMouseEnter={function onMouseEnter}
+                                onTouchStart={function onTouchStart}
+                                href="/sales/linkedin/intelligence"
+                              >
+                                <span className="flex items...">
+                                  <UserSearch className="h-4 w-4 te...">
+                                    <svg
+                                      ref={null}
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width={24}
+                                      height={24}
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
++                                     className="lucide lucide-user-search h-4 w-4 text-primary"
+-                                     className="lucide lucide-user-search h-4 w-4 text-amber-400"
+                                      aria-hidden="true"
+                                    >
+                                  ...
+                                <span
++                                 className="text-xs opacity-80"
+-                                 className="text-xs opacity-70"
+                                >
++                                 {"Export analytics & recommendations"}
+                        ...
+              ...
+            ...
+ 
+[browser] Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior
+Unknown dataset type: unknown
+Unknown dataset type: unknown
+Unknown dataset type: unknown
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="intelligence/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+        <RedirectBoundary>
+          <RedirectErrorBoundary router={{...}}>
+            <InnerLayoutRouter url="/sales/lin..." tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} ...>
+              <SegmentViewNode type="page" pagePath="(portal)/s...">
+                <SegmentTrieNode>
+                <LinkedInIntelligencePage>
+                  <div className="w-full min...">
+                    <IntelligenceDashboard employeeId="2ff337a7-4..." data={{...}}>
+                      <div className="space-y-8 ...">
+                        <LinkedInSubnav>
+                          <div className="flex flex-...">
+                            <LinkComponent href="/sales/lin..." className="flex min-w...">
+                              <a
++                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+-                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+                                ref={function}
+                                onClick={function onClick}
+                                onMouseEnter={function onMouseEnter}
+                                onTouchStart={function onTouchStart}
+                                href="/sales/linkedin"
+                              >
+                                <span className="flex items...">
+                                  <ChartColumn className="h-4 w-4">
+                                    <svg
+                                      ref={null}
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width={24}
+                                      height={24}
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
++                                     className="lucide lucide-chart-column h-4 w-4"
+-                                     className="lucide lucide-chart-column h-4 w-4 text-slate-500"
+                                      aria-hidden="true"
+                                    >
+                                  ...
+                                <span
++                                 className="text-xs opacity-80"
+-                                 className="text-xs opacity-70"
+                                >
++                                 Invites, connections, messaging
+                            <LinkComponent href="/sales/lin..." className="flex min-w...">
+                              <a
++                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+-                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+                                ref={function}
+                                onClick={function onClick}
+                                onMouseEnter={function onMouseEnter}
+                                onTouchStart={function onTouchStart}
+                                href="/sales/linkedin/intelligence"
+                              >
+                                <span className="flex items...">
+                                  <UserSearch className="h-4 w-4 te...">
+                                    <svg
+                                      ref={null}
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width={24}
+                                      height={24}
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
++                                     className="lucide lucide-user-search h-4 w-4 text-primary"
+-                                     className="lucide lucide-user-search h-4 w-4 text-slate-500"
+                                      aria-hidden="true"
+                                    >
+                                  ...
+                                <span
++                                 className="text-xs opacity-80"
+-                                 className="text-xs opacity-70"
+                                >
++                                 {"Export analytics & recommendations"}
+                        ...
+              ...
+            ...
+ 
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <LoadingBoundary name="intelligence/" loading={null}>
+      <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+        <RedirectBoundary>
+          <RedirectErrorBoundary router={{...}}>
+            <InnerLayoutRouter url="/sales/lin..." tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} ...>
+              <SegmentViewNode type="page" pagePath="(portal)/s...">
+                <SegmentTrieNode>
+                <LinkedInIntelligencePage>
+                  <div className="w-full min...">
+                    <IntelligenceDashboard employeeId="2ff337a7-4..." data={{...}}>
+                      <div className="space-y-8 ...">
+                        <LinkedInSubnav>
+                          <div className="flex flex-...">
+                            <LinkComponent href="/sales/lin..." className="flex min-w...">
+                              <a
++                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+-                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+                                ref={function}
+                                onClick={function onClick}
+                                onMouseEnter={function onMouseEnter}
+                                onTouchStart={function onTouchStart}
+                                href="/sales/linkedin"
+                              >
+                                <span className="flex items...">
+                                  <ChartColumn className="h-4 w-4">
+                                    <svg
+                                      ref={null}
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width={24}
+                                      height={24}
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
++                                     className="lucide lucide-chart-column h-4 w-4"
+-                                     className="lucide lucide-chart-column h-4 w-4 text-slate-500"
+                                      aria-hidden="true"
+                                    >
+                                  ...
+                                <span
++                                 className="text-xs opacity-80"
+-                                 className="text-xs opacity-70"
+                                >
++                                 Invites, connections, messaging
+                            <LinkComponent href="/sales/lin..." className="flex min-w...">
+                              <a
++                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+-                               className="flex min-w-[200px] flex-1 flex-col gap-0.5 rounded-xl border px-4 py-3 tran..."
+                                ref={function}
+                                onClick={function onClick}
+                                onMouseEnter={function onMouseEnter}
+                                onTouchStart={function onTouchStart}
+                                href="/sales/linkedin/intelligence"
+                              >
+                                <span className="flex items...">
+                                  <UserSearch className="h-4 w-4 te...">
+                                    <svg
+                                      ref={null}
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width={24}
+                                      height={24}
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth={2}
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
++                                     className="lucide lucide-user-search h-4 w-4 text-primary"
+-                                     className="lucide lucide-user-search h-4 w-4 text-slate-500"
+                                      aria-hidden="true"
+                                    >
+                                  ...
+                                <span
++                                 className="text-xs opacity-80"
+-                                 className="text-xs opacity-70"
+                                >
++                                 {"Export analytics & recommendations"}
+                        ...
+              ...
+            ...
+ 

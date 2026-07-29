@@ -1,0 +1,32 @@
+▲ Next.js 16.2.9 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.137.24:3000
+- Environments: .env.local
+✓ Ready in 2.1s
+○ Compiling proxy ...
+
+○ Compiling /login ...
+✓ Finished writing to filesystem cache in 10.4s
+ GET /login 200 in 37.3s (next.js: 31.7s, proxy.ts: 959ms, application-code: 4.6s)
+ GET /login 200 in 252ms (next.js: 18ms, proxy.ts: 28ms, application-code: 205ms)
+ GET /login 200 in 388ms (next.js: 14ms, proxy.ts: 29ms, application-code: 344ms)
+○ Compiling / ...
+ GET / 307 in 10.8s (next.js: 7.9s, proxy.ts: 22ms, application-code: 2.9s)
+ GET /login 200 in 221ms (next.js: 21ms, proxy.ts: 20ms, application-code: 180ms)
+ GET / 307 in 452ms (next.js: 23ms, proxy.ts: 47ms, application-code: 382ms)
+ GET /login 200 in 179ms (next.js: 7ms, proxy.ts: 13ms, application-code: 160ms)
+ GET / 307 in 483ms (next.js: 26ms, proxy.ts: 42ms, application-code: 415ms)
+ GET /login 200 in 227ms (next.js: 10ms, proxy.ts: 17ms, application-code: 200ms)
+✓ Compiled in 2.9s
+ GET /login 200 in 3.0s (next.js: 1015ms, proxy.ts: 711ms, application-code: 1314ms)
+ GET /login 200 in 3.7s (next.js: 1283ms, proxy.ts: 731ms, application-code: 1721ms)
+ GET /login 200 in 3.1s (next.js: 1436ms, proxy.ts: 45ms, application-code: 1576ms)
+ GET /login 200 in 1604ms (next.js: 49ms, proxy.ts: 157ms, application-code: 1398ms)
+ GET /login 200 in 1602ms (next.js: 156ms, proxy.ts: 160ms, application-code: 1287ms)
+ GET /login 200 in 1471ms (next.js: 441ms, proxy.ts: 51ms, application-code: 979ms)
+ GET /login 200 in 1084ms (next.js: 105ms, proxy.ts: 222ms, application-code: 757ms)
+ GET /login 200 in 1083ms (next.js: 254ms, proxy.ts: 227ms, application-code: 602ms)
+ GET /login 200 in 1081ms (next.js: 430ms, proxy.ts: 228ms, application-code: 422ms)
+ GET /login 200 in 1036ms (next.js: 555ms, proxy.ts: 203ms, application-code: 278ms)
+ GET /login 200 in 2.0s (next.js: 1787ms, proxy.ts: 71ms, application-code: 182ms)
+ GET /login 200 in 2.0s (next.js: 1652ms, proxy.ts: 68ms, application-code: 329ms)

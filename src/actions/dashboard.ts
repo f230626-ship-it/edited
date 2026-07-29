@@ -225,7 +225,7 @@ export async function getDashboardAnalyticsData(
 
     const isBugFix = (desc: string) => {
       const d = desc.toLowerCase();
-      return d.includes("bug") || d.includes("fix") || d.includes("issue") || d.includes("error") || d.includes("defect") || d.includes("close");
+      return d.includes("bug") || d.includes("fix") || d.includes("issue") || d.includes("error") || d.includes("defect");
     };
 
     // Populate buckets chronologically
@@ -287,9 +287,8 @@ export async function getDashboardAnalyticsData(
 
   } else {
     // ─────────────── ADMIN ROLE ───────────────
-    const [{ count: totalProjects }, { count: activeEmployees }, { data: allLogs }, { data: allProjects }] = await Promise.all([
+    const [{ count: totalProjects }, { data: allLogs }, { data: allProjects }] = await Promise.all([
       supabase.from("projects").select("*", { count: "exact", head: true }),
-      supabase.from("employees").select("*", { count: "exact", head: true }).eq("status", "active"),
       supabase.from("sales_daily_logs").select("log_date, connections_sent, connections_accepted").gte("log_date", prevStartDateISO),
       supabase.from("projects").select("start_date, status, actual_delivery_date, progress_percentage"),
     ]);
@@ -340,7 +339,7 @@ export async function getDashboardAnalyticsData(
         sentSum += l.connections_sent || 0;
         acceptedSum += l.connections_accepted || 0;
       }
-      const salesProg = sentSum > 0 ? Math.round((acceptedSum / sentSum) * 100) : 70;
+      const salesProg = sentSum > 0 ? Math.round((acceptedSum / sentSum) * 100) : 0;
 
       avgSalesProgress += salesProg;
       avgEngineeringProgress += engProg;
@@ -348,7 +347,6 @@ export async function getDashboardAnalyticsData(
       bucketsMap.set(key, {
         ...bucketsMap.get(key)!,
         total_projects: totalBucketProj,
-        active_employees: activeEmployees ?? 0,
         sales_progress: salesProg,
         engineering_progress: engProg,
       });
@@ -356,7 +354,6 @@ export async function getDashboardAnalyticsData(
 
     const bucketCount = bucketsMap.size;
     totals.total_projects = totalProjects ?? 0;
-    totals.active_employees = activeEmployees ?? 0;
     totals.sales_progress = bucketCount > 0 ? Math.round(avgSalesProgress / bucketCount) : 0;
     totals.engineering_progress = bucketCount > 0 ? Math.round(avgEngineeringProgress / bucketCount) : 0;
 
@@ -374,10 +371,9 @@ export async function getDashboardAnalyticsData(
       prevSentSum += l.connections_sent || 0;
       prevAcceptedSum += l.connections_accepted || 0;
     }
-    const prevSalesProg = prevSentSum > 0 ? Math.round((prevAcceptedSum / prevSentSum) * 100) : 70;
+    const prevSalesProg = prevSentSum > 0 ? Math.round((prevAcceptedSum / prevSentSum) * 100) : 0;
 
     totals.growth_total_projects = prevProjects.length > 0 ? Math.round(((totals.total_projects - prevProjects.length) / prevProjects.length) * 100) : 0;
-    totals.growth_active_employees = 0; // Flat
     totals.growth_sales_progress = prevSalesProg > 0 ? Math.round(((totals.sales_progress - prevSalesProg) / prevSalesProg) * 100) : 0;
     totals.growth_engineering_progress = prevEngProg > 0 ? Math.round(((totals.engineering_progress - prevEngProg) / prevEngProg) * 100) : 0;
     totals.growthPct = totals.growth_engineering_progress;

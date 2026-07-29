@@ -1,0 +1,18 @@
+▲ Next.js 16.2.9 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://10.94.203.117:3000
+- Environments: .env.local
+✓ Ready in 2.9s
+○ Compiling proxy ...
+
+○ Compiling /login ...
+✓ Finished writing to filesystem cache in 10.5s
+ GET /login 200 in 1143ms (next.js: 246ms, proxy.ts: 169ms, application-code: 728ms)
+ GET /login 200 in 70s (next.js: 52s, proxy.ts: 1785ms, application-code: 16.4s)
+ GET /dashboard 200 in 71s (next.js: 59s, proxy.ts: 1563ms, application-code: 10.3s)
+ GET / 307 in 2.8s (next.js: 2.0s, proxy.ts: 314ms, application-code: 490ms)
+ GET /dashboard 200 in 1658ms (next.js: 8ms, proxy.ts: 259ms, application-code: 1391ms)
+○ Compiling /sales/linkedin ...
+○ Compiling /_error ...
+ GET /sales/linkedin 500 in 18.1s (next.js: 16.6s, proxy.ts: 575ms, application-code: 836ms)
+ GET /sales/linkedin 500 in 525ms (next.js: 59ms, proxy.ts: 398ms, application-code: 68ms)

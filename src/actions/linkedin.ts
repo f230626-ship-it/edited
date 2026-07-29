@@ -17,6 +17,7 @@ import {
   parseEducationData,
   parseCertificationsData,
   parseInvitationsData,
+  parseConnectionsData,
   parseCompanyFollowsData,
   parseLearningData,
   parseEventsData,
@@ -98,14 +99,25 @@ export async function processLinkedInExport(
     const {
       data: { user },
     } = await supabase.auth.getUser();
+
     if (!user) {
       return { success: false, error: "Not authenticated" };
     }
 
-    // Get employee ID from form or use current user
-    const employeeId = formData.get("employee_id") as string || user.id;
-    const zipFile = formData.get("file") as File;
+    // Look up the employee record (employees.id != auth.users.id)
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
 
+    if (!employee) {
+      return { success: false, error: "No employee profile found" };
+    }
+
+    // Use employee.id for DB FK constraints (not user.id from auth)
+    const employeeId = employee.id;
+    const zipFile = formData.get("file") as File;
     if (!zipFile) {
       return { success: false, error: "No file provided" };
     }
@@ -116,11 +128,14 @@ export async function processLinkedInExport(
     }
 
     // Create import record
+    // Log the insert attempt for debugging
+    console.log("[LinkedIn] Creating import record:", { employee_id: employeeId, uploaded_by: employee.id, filename: zipFile.name });
+
     const { data: importRecord, error: importError } = await supabase
       .from("linkedin_imports")
       .insert({
         employee_id: employeeId,
-        uploaded_by: user.id,
+        uploaded_by: employee.id,
         filename: zipFile.name,
         file_size: zipFile.size,
         status: "processing",
@@ -129,6 +144,7 @@ export async function processLinkedInExport(
       .single();
 
     if (importError || !importRecord) {
+      console.error("[LinkedIn] Failed to create import record:", importError);
       return { success: false, error: "Failed to create import record" };
     }
 
@@ -330,12 +346,35 @@ async function storeLinkedInData(
 
         case "invitations":
           const invitations = parseInvitationsData(dataset.data);
+          console.log(`[storeLinkedInData] invitations: ${invitations.length} parsed from ${dataset.rowCount} CSV rows`);
           if (invitations.length > 0) {
+            const sample = invitations[0];
+            console.log(`[storeLinkedInData] sample invitation: direction=${sample.direction}, date=${sample.invitation_date}, first=${sample.first_name}, last=${sample.last_name}`);
+            const withDates = invitations.filter(i => i.invitation_date).length;
+            console.log(`[storeLinkedInData] invitations with dates: ${withDates}/${invitations.length}`);
             await supabase.from("linkedin_invitations").insert(
               invitations.map((i) => ({
                 import_id: importId,
                 employee_id: employeeId,
                 ...i,
+              }))
+            );
+          }
+          break;
+
+        case "connections":
+          const connections = parseConnectionsData(dataset.data);
+          console.log(`[storeLinkedInData] connections: ${connections.length} parsed from ${dataset.rowCount} CSV rows`);
+          if (connections.length > 0) {
+            const sample = connections[0];
+            console.log(`[storeLinkedInData] sample connection: first=${sample.first_name}, last=${sample.last_name}, date=${sample.connected_on}, company=${sample.company}`);
+            const withDates = connections.filter(c => c.connected_on).length;
+            console.log(`[storeLinkedInData] connections with dates: ${withDates}/${connections.length}`);
+            await supabase.from("linkedin_connections").insert(
+              connections.map((c) => ({
+                import_id: importId,
+                employee_id: employeeId,
+                ...c,
               }))
             );
           }
@@ -463,6 +502,10 @@ function generateSummary(datasets: CSVDataset[]): LinkedInSummary {
         summary.total_invitations = dataset.rowCount;
         break;
 
+      case "connections":
+        summary.total_connections = dataset.rowCount;
+        break;
+
       case "company_follows":
         summary.total_companies_followed = dataset.rowCount;
         break;
@@ -497,8 +540,10 @@ export async function getLinkedInAnalytics(employeeId: string) {
 
   // Get latest completed import
   const latestImport = await getLatestLinkedInImport(employeeId);
+  console.log(`[LinkedInAnalytics] employeeId=${employeeId}, latestImport=${latestImport?.id ?? "null"}`);
 
   if (!latestImport) {
+    console.log(`[LinkedInAnalytics] No completed import found for employee ${employeeId}`);
     return null;
   }
 
@@ -512,6 +557,7 @@ export async function getLinkedInAnalytics(employeeId: string) {
     { data: education },
     { data: certifications },
     { data: invitations },
+    { data: connections },
     { data: companyFollows },
     { data: learning },
     { data: events },
@@ -557,6 +603,11 @@ export async function getLinkedInAnalytics(employeeId: string) {
       .eq("import_id", latestImport.id)
       .order("invitation_date", { ascending: false }),
     supabase
+      .from("linkedin_connections")
+      .select("*")
+      .eq("import_id", latestImport.id)
+      .order("connected_on", { ascending: false }),
+    supabase
       .from("linkedin_company_follows")
       .select("*")
       .eq("import_id", latestImport.id),
@@ -591,6 +642,7 @@ export async function getLinkedInAnalytics(employeeId: string) {
     education: education || [],
     certifications: certifications || [],
     invitations: invitations || [],
+    connections: connections || [],
     companyFollows: companyFollows || [],
     learning: learning || [],
     events: events || [],
