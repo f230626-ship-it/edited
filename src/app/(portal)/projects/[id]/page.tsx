@@ -31,6 +31,11 @@ export default async function ProjectDetailPage({
     notFound();
   }
 
+  // Drop resource rows whose employee was deleted / missing (avoids client crash)
+  if (Array.isArray(project.resources)) {
+    project.resources = project.resources.filter((r: { employee: unknown }) => r.employee != null);
+  }
+
   const { data: allEmployees } = await supabase
     .from("employees")
     .select("*")

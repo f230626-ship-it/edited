@@ -247,6 +247,7 @@ export interface Project {
   profile_name?: string | null;
   assigned_bd_label?: string | null;
   assigned_resource_label?: string | null;
+  closer_label?: string | null;
   source?: ProjectSource | null;
   external_row_hash?: string | null;
   created_at: string;

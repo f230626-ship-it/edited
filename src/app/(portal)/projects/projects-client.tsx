@@ -25,7 +25,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  LayoutGrid,
   TrendingUp,
   Clock,
   CheckCircle2,
@@ -43,10 +42,11 @@ import {
   Calendar,
   X,
   Filter,
+  Gauge,
+  Sparkles,
 } from "lucide-react";
 import { ImportDialog } from "@/components/projects/import-dialog";
 import { ProjectSheetSyncControls } from "@/components/projects/project-sheet-sync";
-import { AnimatedNumber } from "@/components/projects/premium-ui";
 import { MetricStrip } from "@/components/projects/metric-strip";
 import type { Employee, Project, ProjectResource, ProjectSyncMeta } from "@/types/database";
 import {
@@ -89,11 +89,11 @@ const getStatusBadge = (status: string) => {
     case "Onboarding":
       return <span className={`${baseClass} bg-indigo-500/10 text-indigo-600 border-indigo-500/20 dark:text-indigo-400 dark:bg-indigo-500/5`}>Onboarding</span>;
     case "In Progress":
-      return <span className={`${baseClass} bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400 dark:bg-amber-500/5`}>In Progress</span>;
+      return <span className={`${baseClass} bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400 dark:bg-amber-500/5`}>Active</span>;
     case "On Hold":
       return <span className={`${baseClass} bg-orange-500/10 text-orange-600 border-orange-500/20 dark:text-orange-400 dark:bg-orange-500/5`}>On Hold</span>;
     case "Completed":
-      return <span className={`${baseClass} bg-green-500/10 text-green-600 border-green-500/20 dark:text-green-400 dark:bg-green-500/5`}>Completed</span>;
+      return <span className={`${baseClass} bg-green-500/10 text-green-600 border-green-500/20 dark:text-green-400 dark:bg-green-500/5`}>Ended</span>;
     case "Maintenance":
       return <span className={`${baseClass} bg-teal-500/10 text-teal-600 border-teal-500/20 dark:text-teal-400 dark:bg-teal-500/5`}>Maintenance</span>;
     case "Paused":
@@ -133,6 +133,100 @@ const CHART_COLORS = [
   "#94a3b8", // Cool Gray
 ];
 
+/** Sheet-facing lifecycle buckets */
+const ACTIVE_STATUSES = ["In Progress", "Onboarding", "Maintenance"] as const;
+const PAUSED_STATUSES = ["Paused", "On Hold"] as const;
+const ENDED_STATUSES = ["Completed"] as const;
+
+function matchesStatusBucket(status: string, filter: string): boolean {
+  if (filter === "ALL") return true;
+  if (filter === "Active") return (ACTIVE_STATUSES as readonly string[]).includes(status);
+  if (filter === "Paused") return (PAUSED_STATUSES as readonly string[]).includes(status);
+  if (filter === "Ended") return (ENDED_STATUSES as readonly string[]).includes(status);
+  return status === filter;
+}
+
+/** Sheet notes that are not real BD / closer / resource people. */
+const JUNK_PERSON_LABELS = new Set([
+  "none",
+  "null",
+  "n/a",
+  "na",
+  "-",
+  "--",
+  "tbd",
+  "unknown",
+  "unassigned",
+  "self",
+  "other",
+  "reference",
+  "referral",
+  "upsell",
+  "up sell",
+  "internal",
+  "outsource",
+  "outsourced",
+]);
+
+function isJunkPersonLabel(raw: string | null | undefined): boolean {
+  if (!raw?.trim()) return true;
+  const v = raw.trim().toLowerCase();
+  if (JUNK_PERSON_LABELS.has(v)) return true;
+  // Notes like "Irfan 50% share", "Looking for GHL", "Outsource to X"
+  if (/%|\bshare\b|\blooking for\b|\boutsource\b/.test(v) && !/^[a-z][a-z\s.'-]{1,40}$/i.test(raw.trim())) {
+    // still allow if it starts with a clear person token — handled by resolver
+  }
+  if (v === "reference" || v.includes("reference only")) return true;
+  if (/^(upsell|reference|none)\b/.test(v)) return true;
+  return false;
+}
+
+function resolvePersonFromLabel(
+  label: string | null | undefined,
+  employees: Employee[]
+): { id: string | null; name: string } | null {
+  const raw = (label || "").trim();
+  if (!raw || isJunkPersonLabel(raw)) return null;
+
+  const lower = raw.toLowerCase();
+  const exact = employees.find((e) => e.full_name.toLowerCase().trim() === lower);
+  if (exact) return { id: exact.id, name: exact.full_name };
+
+  // Strip share/percentage/notes: "Irfan 50% share" → "Irfan"
+  const cleaned = raw
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\d+\s*%/g, " ")
+    .replace(/\b(share|upsell|reference|outsource(d)?|to)\b/gi, " ")
+    .replace(/[+/,;|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned || isJunkPersonLabel(cleaned)) return null;
+
+  const byFirst = employees.find(
+    (e) => e.full_name.toLowerCase().split(/\s+/)[0] === cleaned.toLowerCase()
+  );
+  if (byFirst) return { id: byFirst.id, name: byFirst.full_name };
+
+  let best: { id: string; name: string; len: number } | null = null;
+  for (const e of employees) {
+    for (const part of e.full_name.toLowerCase().split(/\s+/)) {
+      if (part.length < 3) continue;
+      const re = new RegExp(`\\b${part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+      if (re.test(cleaned) && (!best || part.length > best.len)) {
+        best = { id: e.id, name: e.full_name, len: part.length };
+      }
+    }
+  }
+  if (best) return { id: best.id, name: best.name };
+
+  // Only accept cleaned label if it looks like a person name (2–40 letters/spaces)
+  if (/^[A-Za-z][A-Za-z .'-]{1,39}$/.test(cleaned) && cleaned.split(/\s+/).length <= 4) {
+    return { id: null, name: cleaned };
+  }
+  return null;
+}
+
 const ChartTooltip = ({ active, payload, label, prefix = "", suffix = "" }: any) => {
   if (active && payload && payload.length) {
     return (
@@ -158,6 +252,7 @@ const ChartTooltip = ({ active, payload, label, prefix = "", suffix = "" }: any)
 interface ProjectsClientProps {
   initialProjects: (Project & {
     bd: Pick<Employee, "id" | "full_name" | "email"> | null;
+    closing_developer?: Pick<Employee, "id" | "full_name" | "email"> | null;
     manager: Pick<Employee, "id" | "full_name" | "email"> | null;
     resources: (ProjectResource & { employee: Pick<Employee, "id" | "full_name" | "email"> })[];
   })[];
@@ -222,7 +317,7 @@ export default function ProjectsClient({
         (p.company_name && p.company_name.toLowerCase().includes(searchLower));
 
       // Dropdowns
-      const matchesStatus = statusFilter === "ALL" || p.status === statusFilter;
+      const matchesStatus = matchesStatusBucket(p.status, statusFilter);
       const matchesClient = clientFilter === "ALL" || p.client_name === clientFilter;
       const matchesIndustry = industryFilter === "ALL" || p.industry === industryFilter;
       const matchesBd =
@@ -252,13 +347,13 @@ export default function ProjectsClient({
       // KPI filter
       let matchesKpi = true;
       if (kpiFilter === "active") {
-        matchesKpi = ["Onboarding", "In Progress", "Maintenance"].includes(p.status);
+        matchesKpi = (ACTIVE_STATUSES as readonly string[]).includes(p.status);
       } else if (kpiFilter === "on_hold") {
-        matchesKpi = p.status === "On Hold";
+        matchesKpi = (PAUSED_STATUSES as readonly string[]).includes(p.status);
       } else if (kpiFilter === "completed") {
-        matchesKpi = p.status === "Completed";
+        matchesKpi = (ENDED_STATUSES as readonly string[]).includes(p.status);
       } else if (kpiFilter === "retainers") {
-        matchesKpi = !!p.is_monthly_retainer;
+        matchesKpi = Number(p.expected_monthly_revenue || 0) > 0;
       }
 
       return (
@@ -369,74 +464,88 @@ export default function ProjectsClient({
 
   const metrics = useMemo(() => {
     const projects = filteredProjectsByTime;
-    const total = projects.length;
-    
-    let active = 0;
-    let onHold = 0;
-    let completed = 0;
-    let monthlyRecurring = 0;
-    let totalValue = 0;
+    const activeProjects = projects.filter((p) =>
+      (ACTIVE_STATUSES as readonly string[]).includes(p.status)
+    );
+
+    let paused = 0;
+    let ended = 0;
+    let monthlyEstimatedRevenue = 0;
+    let activeWithMrr = 0;
 
     projects.forEach((p) => {
-      if (["Onboarding", "In Progress", "Maintenance"].includes(p.status)) {
-        active++;
-      }
-      if (p.status === "On Hold") {
-        onHold++;
-      }
-      if (p.status === "Completed") {
-        completed++;
-      }
-      if (p.is_monthly_retainer) {
-        monthlyRecurring++;
-      }
-      totalValue += Number(p.value || 0);
+      if ((PAUSED_STATUSES as readonly string[]).includes(p.status)) paused += 1;
+      if ((ENDED_STATUSES as readonly string[]).includes(p.status)) ended += 1;
     });
 
-    // Total active resources (distinct employee IDs assigned to active projects)
-    const activeResourceIds = new Set<string>();
-    projects.forEach((p) => {
-      if (["Onboarding", "In Progress", "Maintenance"].includes(p.status)) {
-        p.resources.forEach((r) => {
-          activeResourceIds.add(r.employee_id);
-        });
+    activeProjects.forEach((p) => {
+      const mrr = Number(p.expected_monthly_revenue || 0);
+      if (mrr > 0) {
+        monthlyEstimatedRevenue += mrr;
+        activeWithMrr += 1;
       }
+    });
+
+    const activeResourceIds = new Set<string>();
+    activeProjects.forEach((p) => {
+      p.resources.forEach((r) => activeResourceIds.add(r.employee_id));
+      if (p.closing_developer_id) activeResourceIds.add(p.closing_developer_id);
     });
 
     return {
-      total,
-      active,
-      onHold,
-      completed,
-      monthlyRecurring,
-      totalValue,
+      total: projects.length,
+      active: activeProjects.length,
+      paused,
+      ended,
+      monthlyEstimatedRevenue,
+      activeWithMrr,
+      avgActiveMrr:
+        activeWithMrr > 0 ? Math.round(monthlyEstimatedRevenue / activeWithMrr) : 0,
       totalActiveResources: activeResourceIds.size,
+      onHold: paused,
+      completed: ended,
+      monthlyRecurring: activeWithMrr,
+      totalValue: monthlyEstimatedRevenue,
     };
   }, [filteredProjectsByTime]);
+
+  /** Dashboard scope: active projects only */
+  const activeDashboardProjects = useMemo(
+    () =>
+      filteredProjectsByTime.filter((p) =>
+        (ACTIVE_STATUSES as readonly string[]).includes(p.status)
+      ),
+    [filteredProjectsByTime]
+  );
 
   // 1. Project Status Chart Data
   const statusChartData = useMemo(() => {
     const counts: Record<string, number> = {};
     filteredProjectsByTime.forEach((p) => {
-      counts[p.status] = (counts[p.status] || 0) + 1;
+      const label =
+        p.status === "In Progress"
+          ? "Active"
+          : p.status === "Completed"
+            ? "Ended"
+            : p.status;
+      counts[label] = (counts[label] || 0) + 1;
     });
     return Object.entries(counts)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
   }, [filteredProjectsByTime]);
 
-  // 2. Revenue Dashboard Calculations
+  // 2. Revenue Dashboard — active projects, monthly estimated revenue
   const revenueMetrics = useMemo(() => {
     let totalRevenue = 0;
     const byMonth: Record<string, { value: number; sortKey: number }> = {};
     const bySource: Record<string, number> = {};
     const byBD: Record<string, number> = {};
 
-    filteredProjectsByTime.forEach((p) => {
-      const val = Number(p.value || 0);
+    activeDashboardProjects.forEach((p) => {
+      const val = Number(p.expected_monthly_revenue || 0);
       totalRevenue += val;
 
-      // Group by Month (using start_date) — store sort key for chronological ordering
       if (p.start_date) {
         const date = new Date(p.start_date);
         const year = date.getFullYear();
@@ -449,17 +558,14 @@ export default function ProjectsClient({
         byMonth[monthName].value += val;
       }
 
-      // Group by Lead Source
       if (p.lead_source) {
         bySource[p.lead_source] = (bySource[p.lead_source] || 0) + val;
       }
 
-      // Group by BD
-      const bdName = p.bd?.full_name || "Self / Other";
+      const bdName = p.assigned_bd_label || p.bd?.full_name || "Self / Other";
       byBD[bdName] = (byBD[bdName] || 0) + val;
     });
 
-    // Sort months chronologically
     const monthData = Object.entries(byMonth)
       .map(([name, { value, sortKey }]) => ({ name, value, sortKey }))
       .sort((a, b) => a.sortKey - b.sortKey)
@@ -475,112 +581,355 @@ export default function ProjectsClient({
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value),
     };
-  }, [filteredProjectsByTime]);
+  }, [activeDashboardProjects]);
 
-  // 3. Resource Utilization Calculations
+  // 3. Resource Utilization — prefer project_resources, fall back to sheet labels / closer
   const resourceMetrics = useMemo(() => {
-    // Total employees in CRM
-    const totalResources = allEmployees.length;
+    type WorkloadRow = {
+      id: string;
+      name: string;
+      workload: number;
+      projectsCount: number;
+      employee: Employee | null;
+    };
 
-    // Calculate workload of each employee across all active projects
-    const workloads: Record<string, { employee: Employee; workload: number; projectsCount: number }> = {};
-    
-    // Seed all active employees
+    const workloads: Record<string, WorkloadRow> = {};
+
+    const ensure = (id: string, name: string, employee: Employee | null = null) => {
+      if (!workloads[id]) {
+        workloads[id] = { id, name, workload: 0, projectsCount: 0, employee };
+      } else if (!workloads[id].employee && employee) {
+        workloads[id].employee = employee;
+        workloads[id].name = employee.full_name;
+      }
+      return workloads[id];
+    };
+
     allEmployees.forEach((emp) => {
       if (emp.status === "active") {
-        workloads[emp.id] = { employee: emp, workload: 0, projectsCount: 0 };
+        ensure(emp.id, emp.full_name, emp);
       }
     });
 
-    filteredProjectsByTime.forEach((p) => {
-      if (["Onboarding", "In Progress", "Maintenance"].includes(p.status)) {
-        p.resources.forEach((r) => {
-          if (workloads[r.employee_id]) {
-            workloads[r.employee_id].workload += Number(r.allocation_percentage || 0);
-            workloads[r.employee_id].projectsCount += 1;
-          }
+    const findEmployeeByLabel = (label: string | null | undefined) => {
+      if (!label?.trim()) return null;
+      const needle = label.trim().toLowerCase();
+      return (
+        allEmployees.find((e) => e.full_name.toLowerCase() === needle) ||
+        allEmployees.find((e) => e.full_name.toLowerCase().includes(needle) || needle.includes(e.full_name.toLowerCase())) ||
+        null
+      );
+    };
+
+    const running = activeDashboardProjects;
+
+    running.forEach((p) => {
+      const resourceRows = (p.resources || []).filter((r) => r.employee_id);
+      if (resourceRows.length > 0) {
+        resourceRows.forEach((r) => {
+          const emp =
+            allEmployees.find((e) => e.id === r.employee_id) ||
+            (r.employee as Employee | undefined) ||
+            null;
+          const row = ensure(
+            r.employee_id,
+            emp?.full_name || "Unknown",
+            emp
+          );
+          row.workload += Number(r.allocation_percentage || Math.floor(100 / resourceRows.length));
+          row.projectsCount += 1;
+        });
+        return;
+      }
+
+      // Sheet fallback: closer FK → resource label → BD label
+      const assignees: { id: string; name: string; employee: Employee | null }[] = [];
+      if (p.closing_developer_id) {
+        const emp =
+          allEmployees.find((e) => e.id === p.closing_developer_id) ||
+          (p.closing_developer as Employee | undefined) ||
+          null;
+        assignees.push({
+          id: p.closing_developer_id,
+          name: emp?.full_name || p.assigned_resource_label || "Unknown",
+          employee: emp,
+        });
+      } else if (p.assigned_resource_label?.trim()) {
+        const matched = findEmployeeByLabel(p.assigned_resource_label);
+        assignees.push({
+          id: matched?.id || `label:${p.assigned_resource_label.trim().toLowerCase()}`,
+          name: matched?.full_name || p.assigned_resource_label.trim(),
+          employee: matched,
         });
       }
+
+      if (assignees.length === 0) return;
+      const share = Math.floor(100 / assignees.length);
+      assignees.forEach((a) => {
+        const row = ensure(a.id, a.name, a.employee);
+        row.workload += share;
+        row.projectsCount += 1;
+      });
     });
 
-    const workloadList = Object.values(workloads).sort((a, b) => b.workload - a.workload);
-    
-    let assignedCount = 0;
-    workloadList.forEach((w) => {
-      if (w.workload > 0) assignedCount++;
-    });
+    const workloadList = Object.values(workloads).sort(
+      (a, b) => b.workload - a.workload || b.projectsCount - a.projectsCount
+    );
+    const assignedCount = workloadList.filter((w) => w.projectsCount > 0).length;
+    const totalResources = allEmployees.filter((e) => e.status === "active").length;
 
     return {
       totalResources,
       assignedCount,
-      availableCount: totalResources - assignedCount,
+      availableCount: Math.max(0, totalResources - assignedCount),
       workloads: workloadList,
     };
-  }, [filteredProjectsByTime, allEmployees]);
+  }, [activeDashboardProjects, allEmployees]);
 
-  // 4. BD Performance Calculations
+  // Projects running per outreach/sales profile (sheet "Profile Name")
+  const profileRunningData = useMemo(() => {
+    const map = new Map<string, { profile: string; running: number; value: number; mrr: number }>();
+    activeDashboardProjects.forEach((p) => {
+      const profile = (p.profile_name || "").trim() || "Unassigned profile";
+      const current = map.get(profile) || { profile, running: 0, value: 0, mrr: 0 };
+      current.running += 1;
+      current.value += Number(p.value || 0);
+      current.mrr += Number(p.expected_monthly_revenue || 0);
+      map.set(profile, current);
+    });
+    return Array.from(map.values()).sort((a, b) => b.mrr - a.mrr || b.running - a.running);
+  }, [activeDashboardProjects]);
+
+  // 4. BD Performance — active pipeline only (ended deals stay on Projects List)
   const bdPerformanceData = useMemo(() => {
     const stats: Record<string, { name: string; closed: number; revenue: number; active: number; completed: number }> = {};
 
-    filteredProjectsByTime.forEach((p) => {
-      if (!p.bd_id) return;
-      const bdName = p.bd?.full_name || "Unknown";
-      
-      if (!stats[p.bd_id]) {
-        stats[p.bd_id] = { name: bdName, closed: 0, revenue: 0, active: 0, completed: 0 };
+    activeDashboardProjects.forEach((p) => {
+      const matched =
+        (p.bd_id && p.bd?.full_name
+          ? { id: p.bd_id, name: p.bd.full_name }
+          : null) ||
+        resolvePersonFromLabel(p.assigned_bd_label, allEmployees) ||
+        resolvePersonFromLabel(p.bd?.full_name, allEmployees);
+
+      // Skip sheet notes like "Reference", "None", "Irfan 50% share" when unmatched
+      if (!matched) return;
+
+      const key = matched.id || `name:${matched.name.toLowerCase()}`;
+      if (!stats[key]) {
+        stats[key] = { name: matched.name, closed: 0, revenue: 0, active: 0, completed: 0 };
       }
 
-      const row = stats[p.bd_id];
+      const row = stats[key];
       row.closed += 1;
-      row.revenue += Number(p.value || 0);
-      
-      if (["Onboarding", "In Progress", "Maintenance"].includes(p.status)) {
-        row.active += 1;
+      row.active += 1;
+      row.revenue += Number(p.expected_monthly_revenue || p.value || 0);
+    });
+
+    return Object.values(stats).sort((a, b) => b.revenue - a.revenue || b.active - a.active);
+  }, [activeDashboardProjects, allEmployees]);
+
+  const employeeNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    allEmployees.forEach((emp) => map.set(emp.id, emp.full_name));
+    return map;
+  }, [allEmployees]);
+
+  const visibilityMetrics = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const runningStatuses = new Set(["Onboarding", "In Progress", "Maintenance"]);
+    const completedStatuses = new Set(["Completed"]);
+    const closedOwnerMap = new Map<string, { count: number; value: number }>();
+
+    let runningCount = 0;
+    let totalRunningDurationDays = 0;
+    let healthyCount = 0;
+    let atRiskCount = 0;
+    let criticalCount = 0;
+    let overdueCount = 0;
+    let closedThisMonth = 0;
+    let cycleTimeSum = 0;
+    let cycleTimeCount = 0;
+
+    filteredProjectsByTime.forEach((project) => {
+      const start = project.start_date ? new Date(project.start_date) : null;
+      const expected = project.expected_delivery_date
+        ? new Date(project.expected_delivery_date)
+        : null;
+      const end =
+        project.actual_delivery_date
+          ? new Date(project.actual_delivery_date)
+          : expected;
+      const progress = Number(project.progress_percentage || 0);
+      const value = Number(project.value || 0);
+
+      if (runningStatuses.has(project.status)) {
+        runningCount += 1;
+
+        if (start && Number.isFinite(start.getTime())) {
+          const runningDays = Math.max(
+            0,
+            Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+          );
+          totalRunningDurationDays += runningDays;
+        }
+
+        let health: "healthy" | "atRisk" | "critical" = "healthy";
+        if (project.status === "On Hold") {
+          health = "critical";
+        } else if (start && expected && expected < now) {
+          health = "critical";
+          overdueCount += 1;
+        } else if (start && expected && expected > start) {
+          const totalPlanDays = Math.max(
+            1,
+            Math.floor((expected.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+          );
+          const elapsedDays = Math.max(
+            0,
+            Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+          );
+          const expectedProgress = Math.min(100, (elapsedDays / totalPlanDays) * 100);
+          if (progress + 10 < expectedProgress) {
+            health = expectedProgress - progress > 25 ? "critical" : "atRisk";
+          }
+        }
+
+        if (health === "healthy") healthyCount += 1;
+        if (health === "atRisk") atRiskCount += 1;
+        if (health === "critical") criticalCount += 1;
       }
-      if (p.status === "Completed") {
-        row.completed += 1;
+
+      if (completedStatuses.has(project.status)) {
+        const closer =
+          project.closer_label ||
+          (project.closing_developer_id
+            ? employeeNameById.get(project.closing_developer_id)
+            : null);
+        const fallbackOwner =
+          project.assigned_resource_label ||
+          project.assigned_bd_label ||
+          project.bd?.full_name ||
+          "Unknown";
+        const owner = closer || fallbackOwner;
+        const current = closedOwnerMap.get(owner) || { count: 0, value: 0 };
+        current.count += 1;
+        current.value += value;
+        closedOwnerMap.set(owner, current);
+
+        const closeDate =
+          project.actual_delivery_date
+            ? new Date(project.actual_delivery_date)
+            : project.expected_delivery_date
+              ? new Date(project.expected_delivery_date)
+              : project.updated_at
+                ? new Date(project.updated_at)
+                : null;
+        if (closeDate && closeDate >= monthStart && closeDate <= now) {
+          closedThisMonth += 1;
+        }
+
+        if (start && end && end >= start) {
+          cycleTimeSum += Math.max(
+            0,
+            Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+          );
+          cycleTimeCount += 1;
+        }
       }
     });
 
-    return Object.values(stats).sort((a, b) => b.revenue - a.revenue);
-  }, [filteredProjectsByTime]);
+    const closedByOwner = Array.from(closedOwnerMap.entries())
+      .map(([owner, stats]) => ({ owner, ...stats }))
+      .sort((a, b) => b.count - a.count || b.value - a.value);
+
+    const topCloser = closedByOwner[0] ?? null;
+
+    return {
+      runningCount,
+      avgRunningDurationDays:
+        runningCount > 0 ? Math.round(totalRunningDurationDays / runningCount) : 0,
+      healthyCount,
+      atRiskCount,
+      criticalCount,
+      overdueCount,
+      closedThisMonth,
+      avgCycleTimeDays:
+        cycleTimeCount > 0 ? Math.round(cycleTimeSum / cycleTimeCount) : 0,
+      topCloser,
+      closedByOwner,
+    };
+  }, [filteredProjectsByTime, employeeNameById]);
 
   return (
     <div className="projects-module space-y-4 sm:space-y-5 md:space-y-6">
-      {/* Header and Controls */}
-      <div className="pm-hero flex flex-col gap-4 sm:gap-5 md:flex-row md:items-center md:justify-between">
-        <div className="space-y-1 sm:space-y-1.5 min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gradient-brand">Project Management</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground max-w-lg truncate">Manage client projects, resource allocations, and view performance insights.</p>
-        </div>
-        
-        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 shrink-0">
-          {/* Tabs */}
-          <div className="pm-tabs">
-            <button
-              onClick={() => setActiveTab("dashboard")}
-              className={`pm-tab text-xs sm:text-sm ${activeTab === "dashboard" ? "pm-tab-active" : ""}`}
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => setActiveTab("list")}
-              className={`pm-tab text-xs sm:text-sm ${activeTab === "list" ? "pm-tab-active" : ""}`}
-            >
-              Projects List ({filteredProjects.length})
-            </button>
+      {/* Header and Controls — plain div avoids framer-motion SSR style hydration mismatch */}
+      <div className="pm-hero rounded-2xl border border-border/50 bg-card/50 p-4 sm:p-5">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1 sm:space-y-1.5 min-w-0 flex-1">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gradient-brand">
+                Project Management
+              </h1>
+              <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl">
+                Complete visibility from Google Sheet: project health, running duration, closer ownership, and delivery performance.
+              </p>
+            </div>
+
+            {/* Add Project — always visible, never packed into the sync row */}
+            <div className="shrink-0">
+              {isAdmin ? (
+                <Link href="/projects/new">
+                  <Button className="pm-btn-primary text-primary-foreground shadow-md shadow-primary/20 w-full sm:w-auto">
+                    <Plus className="mr-2 h-4 w-4" /> Add Project
+                  </Button>
+                </Link>
+              ) : isWritable ? (
+                <Button
+                  disabled
+                  title="Only Admins can create new projects"
+                  className="pm-btn-primary opacity-50 cursor-not-allowed w-full sm:w-auto"
+                >
+                  <Lock className="mr-2 h-3.5 w-3.5" /> Add Project
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="pm-tabs">
+              <button
+                type="button"
+                onClick={() => setActiveTab("dashboard")}
+                className={`pm-tab text-xs sm:text-sm ${activeTab === "dashboard" ? "pm-tab-active" : ""}`}
+              >
+                Dashboard
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("list")}
+                className={`pm-tab text-xs sm:text-sm ${activeTab === "list" ? "pm-tab-active" : ""}`}
+              >
+                Projects List ({filteredProjects.length})
+              </button>
+            </div>
           </div>
 
           {/* Google Sheet sync – primary; Excel import kept as secondary */}
           {isAdmin && (
-            <div className="flex flex-col items-end gap-1">
-              <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/40 bg-background/50 px-3 py-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                Synced dashboard from Google Sheet
+              </div>
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
                 <ProjectSheetSyncControls syncMeta={syncMeta} />
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setIsImportOpen(true)}
-                  className="text-xs text-muted-foreground"
+                  className="text-xs text-muted-foreground shrink-0"
                 >
                   <Upload className="mr-1.5 h-3.5 w-3.5" />
                   Upload Excel
@@ -588,23 +937,6 @@ export default function ProjectsClient({
               </div>
             </div>
           )}
-
-          {/* Create Button – admin only */}
-          {isAdmin ? (
-            <Link href="/projects/new" className="flex items-center">
-              <Button className="pm-btn-primary text-primary-foreground text-xs sm:text-sm">
-                <Plus className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> Add Project
-              </Button>
-            </Link>
-          ) : isWritable ? (
-            <Button
-              disabled
-              title="Only Admins can create new projects"
-              className="pm-btn-primary opacity-50 cursor-not-allowed text-xs sm:text-sm"
-            >
-              <Lock className="mr-1.5 sm:mr-2 h-3 w-3 sm:h-3.5 sm:w-3.5" /> Add Project
-            </Button>
-          ) : null}
         </div>
       </div>
 
@@ -747,19 +1079,127 @@ export default function ProjectsClient({
             </div>
           </div>
 
-          {/* 1. Metric Strip */}
+          {/* Active portfolio metrics */}
           <MetricStrip
             activeFilter={kpiFilter}
             onFilterChange={(f) => { setKpiFilter(f); setActiveTab("list"); }}
             metrics={[
-              { label: "Total Projects", value: metrics.total, icon: LayoutGrid, color: "primary" },
-              { label: "Active", value: metrics.active, icon: TrendingUp, color: "blue" },
-              { label: "On Hold", value: metrics.onHold, icon: Clock, color: "amber" },
-              { label: "Completed", value: metrics.completed, icon: CheckCircle2, color: "green" },
-              { label: "Retainers", value: metrics.monthlyRecurring, icon: Repeat2, color: "violet" },
-              { label: "Total Value", value: `$${metrics.totalValue.toLocaleString()}`, icon: DollarSign, color: "primary" },
+              { label: "Active Projects", value: metrics.active, icon: TrendingUp, color: "blue" },
+              { label: "Est. Monthly Rev", value: `$${metrics.monthlyEstimatedRevenue.toLocaleString()}`, icon: DollarSign, color: "primary" },
+              { label: "With MRR", value: metrics.activeWithMrr, icon: Repeat2, color: "violet" },
+              { label: "Avg MRR", value: `$${metrics.avgActiveMrr.toLocaleString()}`, icon: Gauge, color: "green" },
+              { label: "Paused", value: metrics.paused, icon: Clock, color: "amber" },
+              { label: "Ended", value: metrics.ended, icon: CheckCircle2, color: "green" },
             ]}
           />
+
+          {/* Active projects + monthly estimated revenue */}
+          <Card className="border-border/40 bg-card/40 backdrop-blur-xl shadow-sm rounded-2xl overflow-hidden">
+            <CardHeader className="pb-4 pt-6 px-6 border-b border-border/30">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-sm font-bold tracking-tight text-foreground">
+                    Active Projects · Monthly Estimated Revenue
+                  </CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground mt-1">
+                    Sheet Active status only · sum of Expected Monthly Revenue (MRR)
+                  </CardDescription>
+                </div>
+                <div className="rounded-full bg-primary/10 border border-primary/20 px-3 py-1 text-sm font-bold text-primary tabular-nums">
+                  ${metrics.monthlyEstimatedRevenue.toLocaleString()}
+                  <span className="ml-1 text-xs font-semibold text-primary/70">/ mo</span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-b border-border/30 bg-muted/20">
+                    <TableHead className="font-semibold text-xs uppercase text-muted-foreground py-3 px-6">Client / Project</TableHead>
+                    <TableHead className="font-semibold text-xs uppercase text-muted-foreground py-3 px-4">Closer</TableHead>
+                    <TableHead className="font-semibold text-xs uppercase text-muted-foreground py-3 px-4">Resource</TableHead>
+                    <TableHead className="font-semibold text-xs uppercase text-muted-foreground py-3 px-4">Profile</TableHead>
+                    <TableHead className="font-semibold text-xs uppercase text-muted-foreground py-3 px-4">Platform</TableHead>
+                    <TableHead className="font-semibold text-xs uppercase text-muted-foreground py-3 px-6 text-right">Est. MRR</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {activeDashboardProjects.length > 0 ? (
+                    activeDashboardProjects.map((p) => (
+                      <TableRow
+                        key={p.id}
+                        className="border-b border-border/20 hover:bg-muted/30 cursor-pointer"
+                        onClick={() => router.push(`/projects/${p.id}`)}
+                      >
+                        <TableCell className="py-3 px-6">
+                          <div className="font-semibold text-sm">{p.client_name}</div>
+                          <div className="text-xs text-muted-foreground truncate max-w-[220px]">{p.name}</div>
+                        </TableCell>
+                        <TableCell className="py-3 px-4 text-sm">
+                          {p.closer_label || p.closing_developer?.full_name || "—"}
+                        </TableCell>
+                        <TableCell className="py-3 px-4 text-sm text-muted-foreground">
+                          {p.assigned_resource_label || "—"}
+                        </TableCell>
+                        <TableCell className="py-3 px-4 text-sm text-muted-foreground">
+                          {p.profile_name || "—"}
+                        </TableCell>
+                        <TableCell className="py-3 px-4 text-sm text-muted-foreground">
+                          {p.lead_source || "—"}
+                        </TableCell>
+                        <TableCell className="py-3 px-6 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                          {Number(p.expected_monthly_revenue || 0) > 0
+                            ? `$${Number(p.expected_monthly_revenue).toLocaleString()}`
+                            : "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                        No active projects in this period
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          {visibilityMetrics.closedByOwner.length > 0 && (
+            <Card className="border-border/40 bg-card/40 backdrop-blur-xl shadow-sm rounded-2xl overflow-hidden">
+              <CardHeader className="pb-4 pt-6 px-6 border-b border-border/30">
+                <CardTitle className="text-sm font-bold tracking-tight text-foreground">
+                  Which Person Closed Which Project
+                </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground mt-1">
+                  Completed project ownership from closer/resource/BD sheet labels
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent border-b border-border/30 bg-muted/20">
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-3 px-6">Person</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-3 px-4 text-center">Closed Projects</TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-3 px-6 text-right">Closed Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {visibilityMetrics.closedByOwner.slice(0, 8).map((row) => (
+                      <TableRow key={row.owner} className="border-b border-border/20 hover:bg-muted/30 transition-colors">
+                        <TableCell className="py-3 px-6 font-medium text-sm">{row.owner}</TableCell>
+                        <TableCell className="py-3 px-4 text-center font-bold tabular-nums">{row.count}</TableCell>
+                        <TableCell className="py-3 px-6 text-right font-semibold tabular-nums">
+                          ${row.value.toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Charts grid */}
           <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 mt-6">
@@ -826,8 +1266,8 @@ export default function ProjectsClient({
             {/* ── Area: Monthly Revenue Timeline ── */}
             <Card className="border-border/40 bg-card/40 backdrop-blur-xl shadow-sm rounded-2xl flex flex-col overflow-hidden">
               <CardHeader className="pb-0 pt-6 px-6">
-                <CardTitle className="text-sm font-bold tracking-tight text-foreground">Monthly Revenue Timeline</CardTitle>
-                <CardDescription className="text-xs text-muted-foreground mt-1">Revenue incoming grouped by project start date</CardDescription>
+                <CardTitle className="text-sm font-bold tracking-tight text-foreground">Monthly Estimated Revenue Timeline</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground mt-1">Active projects only · Expected Monthly Revenue by start month</CardDescription>
               </CardHeader>
               <CardContent className="flex-1 pt-4 pb-2 px-2">
                 {revenueMetrics.monthData.length > 0 ? (
@@ -891,8 +1331,8 @@ export default function ProjectsClient({
             {/* ── Bar: Revenue by Lead Source ── */}
             <Card className="border-border/40 bg-card/40 backdrop-blur-xl shadow-sm rounded-2xl flex flex-col overflow-hidden">
               <CardHeader className="pb-0 pt-6 px-6">
-                <CardTitle className="text-sm font-bold tracking-tight text-foreground">Revenue by Lead Source</CardTitle>
-                <CardDescription className="text-xs text-muted-foreground mt-1">Financial volume generated by origin source</CardDescription>
+                <CardTitle className="text-sm font-bold tracking-tight text-foreground">Revenue by Platform</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground mt-1">Active projects · estimated monthly revenue by closing platform</CardDescription>
               </CardHeader>
               <CardContent className="flex-1 pt-4 pb-2 px-2">
                 {revenueMetrics.sourceData.length > 0 ? (
@@ -950,7 +1390,9 @@ export default function ProjectsClient({
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-sm font-bold tracking-tight text-foreground">Resource Allocation</CardTitle>
-                    <CardDescription className="text-xs text-muted-foreground mt-1">Assigned workload vs remaining capacity</CardDescription>
+                    <CardDescription className="text-xs text-muted-foreground mt-1">
+                      Running projects per person (sheet resource / closer when assignments are missing)
+                    </CardDescription>
                   </div>
                   <div className="flex items-center gap-2 rounded-full bg-primary/10 border border-primary/20 px-3 py-1">
                     <span className="text-sm font-bold text-primary">{resourceMetrics.assignedCount}</span>
@@ -960,7 +1402,7 @@ export default function ProjectsClient({
               </CardHeader>
               <CardContent className="flex-1 p-0 overflow-y-auto max-h-[260px]">
                 <div className="flex flex-col">
-                  {resourceMetrics.workloads.slice(0, 8).map((item, i) => {
+                  {resourceMetrics.workloads.filter((w) => w.projectsCount > 0).slice(0, 12).map((item, i) => {
                     const pct = Math.min(item.workload, 100);
                     let statusColor = "bg-emerald-500";
                     let textColor = "text-emerald-600 dark:text-emerald-400";
@@ -971,25 +1413,29 @@ export default function ProjectsClient({
                       statusColor = "bg-amber-500";
                       textColor = "text-amber-600 dark:text-amber-400";
                     }
+                    const initials = item.name
+                      ?.split(" ")
+                      .map((n: string) => n[0])
+                      .join("")
+                      .slice(0, 2);
 
                     return (
-                      <div key={item.employee.id} className={cn(
+                      <div key={item.id} className={cn(
                         "flex items-center justify-between p-4 transition-colors hover:bg-muted/30",
                         i !== 0 && "border-t border-border/30"
                       )}>
-                        <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10 flex items-center justify-center text-[11px] font-bold text-primary shadow-sm">
-                            {item.employee.full_name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="h-8 w-8 shrink-0 rounded-full bg-linear-to-br from-primary/20 to-primary/5 border border-primary/10 flex items-center justify-center text-[11px] font-bold text-primary shadow-sm">
+                            {initials}
                           </div>
-                          <div className="flex flex-col">
-                            <span className="text-sm font-semibold text-foreground">{item.employee.full_name}</span>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-sm font-semibold text-foreground truncate">{item.name}</span>
                             <span className="text-[11px] font-medium text-muted-foreground">
-                              {item.projectsCount} active {item.projectsCount === 1 ? "project" : "projects"}
+                              {item.projectsCount} running {item.projectsCount === 1 ? "project" : "projects"}
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                          {/* Sleek track bar */}
+                        <div className="flex items-center gap-4 shrink-0">
                           <div className="hidden sm:block w-24 h-1.5 rounded-full bg-muted overflow-hidden">
                             <div
                               className={cn("h-full rounded-full transition-all duration-1000 ease-out", statusColor)}
@@ -1003,43 +1449,90 @@ export default function ProjectsClient({
                       </div>
                     );
                   })}
+                  {resourceMetrics.workloads.every((w) => w.projectsCount === 0) && (
+                    <div className="p-6 text-sm text-muted-foreground text-center">
+                      No running project assignments found from resources or sheet labels
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
           </div>
 
+          {/* Running projects by Profile Name */}
+          {profileRunningData.length > 0 && (
+            <Card className="border-border/40 bg-card/40 backdrop-blur-xl shadow-sm rounded-2xl overflow-hidden">
+              <CardHeader className="pb-4 pt-6 px-6 border-b border-border/30">
+                <CardTitle className="text-sm font-bold tracking-tight text-foreground">
+                  Running Projects by Profile
+                </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground mt-1">
+                  How many active projects sit on each sheet profile name
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent border-b border-border/30 bg-muted/20">
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-3 px-6">
+                        Profile
+                      </TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-3 px-4 text-center">
+                        Running
+                      </TableHead>
+                      <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-3 px-6 text-right">
+                        Est. MRR
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {profileRunningData.map((row) => (
+                      <TableRow key={row.profile} className="border-b border-border/20 hover:bg-muted/30">
+                        <TableCell className="py-3 px-6 font-semibold text-sm">{row.profile}</TableCell>
+                        <TableCell className="py-3 px-4 text-center">
+                          <span className="inline-flex items-center justify-center rounded-md bg-blue-500/10 px-2 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 min-w-[32px]">
+                            {row.running}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3 px-6 text-right font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                          ${row.mrr.toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          )}
+
           {/* BD Performance Dashboard Table */}
           {bdPerformanceData.length > 0 && (
             <Card className="border-border/40 bg-card/40 backdrop-blur-xl shadow-sm rounded-2xl overflow-hidden mt-6">
               <CardHeader className="pb-4 pt-6 px-6 border-b border-border/30">
-                <CardTitle className="text-sm font-bold tracking-tight text-foreground">Business Development Performance</CardTitle>
-                <CardDescription className="text-xs text-muted-foreground mt-1">Metrics on deals closed, revenue generated, and active pipelines</CardDescription>
+                <CardTitle className="text-sm font-bold tracking-tight text-foreground">BD Active Pipeline</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground mt-1">
+                  Active projects only · ended deals are excluded from this dashboard
+                </CardDescription>
               </CardHeader>
               <div className="overflow-x-auto">
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent border-b border-border/30 bg-muted/20">
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-4 px-6 w-[30%]">Representative</TableHead>
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-4 px-4 text-center w-[17%]">Closed Won</TableHead>
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-4 px-6 text-right w-[23%]">Total Revenue</TableHead>
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-4 px-4 text-center w-[15%]">Active Deals</TableHead>
-                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-4 px-6 text-center w-[15%]">Completed</TableHead>
+                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-4 px-6 w-[40%]">Representative</TableHead>
+                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-4 px-4 text-center w-[20%]">Active Projects</TableHead>
+                        <TableHead className="font-semibold text-xs tracking-wider uppercase text-muted-foreground py-4 px-6 text-right w-[40%]">Est. Monthly Revenue</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {bdPerformanceData.map((row, idx) => (
                         <TableRow key={`${row.name}-${idx}`} className="border-b border-border/20 hover:bg-muted/30 transition-colors">
                           <TableCell className="py-4 px-6 font-semibold text-sm text-foreground">{row.name}</TableCell>
-                          <TableCell className="py-4 px-4 text-center font-bold font-mono text-sm tabular-nums text-foreground/80">{row.closed}</TableCell>
-                          <TableCell className="py-4 px-6 text-right font-bold font-mono text-sm tabular-nums text-emerald-600 dark:text-emerald-400">
-                            ${row.revenue.toLocaleString()}
-                          </TableCell>
                           <TableCell className="py-4 px-4 text-center">
                             <span className="inline-flex items-center justify-center rounded-md bg-blue-500/10 px-2 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 min-w-[32px]">{row.active}</span>
                           </TableCell>
-                          <TableCell className="py-4 px-6 text-center">
-                            <span className="inline-flex items-center justify-center rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 min-w-[32px]">{row.completed}</span>
+                          <TableCell className="py-4 px-6 text-right font-bold font-mono text-sm tabular-nums text-emerald-600 dark:text-emerald-400">
+                            ${row.revenue.toLocaleString()}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1086,6 +1579,33 @@ export default function ProjectsClient({
           {/* Filters Bar */}
           <Card className="pm-filter-card">
             <CardContent className="pt-4 space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                {[
+                  { key: "ALL", label: "All" },
+                  { key: "Active", label: "Active" },
+                  { key: "Paused", label: "Paused" },
+                  { key: "Ended", label: "Ended" },
+                ].map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    onClick={() => {
+                      setStatusFilter(chip.key);
+                      setKpiFilter(null);
+                      setCurrentPage(1);
+                    }}
+                    className={cn(
+                      "h-8 px-3 rounded-full text-xs font-semibold border transition-colors",
+                      statusFilter === chip.key
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-card border-border/50 text-muted-foreground hover:text-foreground hover:border-border"
+                    )}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+
               <div className="flex flex-col gap-3 md:flex-row">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -1122,13 +1642,15 @@ export default function ProjectsClient({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="ALL">All Statuses</SelectItem>
+                        <SelectItem value="Active">Active (sheet)</SelectItem>
+                        <SelectItem value="Paused">Paused (sheet)</SelectItem>
+                        <SelectItem value="Ended">Ended (sheet)</SelectItem>
                         <SelectItem value="Lead Won">Lead Won</SelectItem>
                         <SelectItem value="Onboarding">Onboarding</SelectItem>
                         <SelectItem value="In Progress">In Progress</SelectItem>
                         <SelectItem value="On Hold">On Hold</SelectItem>
                         <SelectItem value="Completed">Completed</SelectItem>
                         <SelectItem value="Maintenance">Maintenance</SelectItem>
-                        <SelectItem value="Paused">Paused</SelectItem>
                         <SelectItem value="Cancelled">Cancelled</SelectItem>
                         <SelectItem value="Archived">Archived</SelectItem>
                       </SelectContent>
@@ -1293,6 +1815,7 @@ export default function ProjectsClient({
                       <TableHead className="font-semibold text-[10px] tracking-wider uppercase text-muted-foreground py-2.5 px-3 whitespace-nowrap w-[6%]">Rate</TableHead>
                       <TableHead className="font-semibold text-[10px] tracking-wider uppercase text-muted-foreground py-2.5 px-3 whitespace-nowrap w-[11%]">Status</TableHead>
                       <TableHead className="font-semibold text-[10px] tracking-wider uppercase text-muted-foreground py-2.5 px-3 text-right whitespace-nowrap w-[6%]">MRR</TableHead>
+                      <TableHead className="font-semibold text-[10px] tracking-wider uppercase text-muted-foreground py-2.5 px-3 whitespace-nowrap w-[9%]">Closer</TableHead>
                       <TableHead className="font-semibold text-[10px] tracking-wider uppercase text-muted-foreground py-2.5 px-3 whitespace-nowrap w-[9%]">Resource</TableHead>
                       <TableHead className="font-semibold text-[10px] tracking-wider uppercase text-muted-foreground py-2.5 px-3 whitespace-nowrap w-[7%]">Profile</TableHead>
                       <TableHead className="font-semibold text-[10px] tracking-wider uppercase text-muted-foreground py-2.5 px-3 whitespace-nowrap w-[6%]">BD</TableHead>
@@ -1326,6 +1849,12 @@ export default function ProjectsClient({
                           </TableCell>
                           <TableCell className="py-2.5 px-3 text-right font-mono tabular-nums text-xs whitespace-nowrap">
                             {p.expected_monthly_revenue ? `$${Number(p.expected_monthly_revenue).toLocaleString()}` : "—"}
+                          </TableCell>
+                          <TableCell
+                            className="py-2.5 px-3 max-w-0 truncate text-xs text-muted-foreground"
+                            title={p.closer_label || p.closing_developer?.full_name || undefined}
+                          >
+                            {p.closer_label || p.closing_developer?.full_name?.split(" ")[0] || "—"}
                           </TableCell>
                           <TableCell
                             className="py-2.5 px-3 max-w-0 truncate text-xs text-muted-foreground"

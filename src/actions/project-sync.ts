@@ -16,21 +16,35 @@ function resolveProjectsTabName(raw?: string | null) {
   return tab;
 }
 
-/** Match "Fatima", "Asim Ali", or "Outsource to Faizan (50k)" to employees. */
+/** Match "Fatima", "Asim Ali", or "Irfan 50% share" to employees. */
 function findEmployeeId(
   employees: { id: string; full_name: string }[],
   name: string | null | undefined
 ): string | null {
   if (!name?.trim()) return null;
+  const junk = /^(none|n\/a|na|null|tbd|-|reference|upsell|unassigned|unknown)$/i;
+  if (junk.test(name.trim())) return null;
+
   const raw = name.toLowerCase().trim();
+  const cleaned = raw
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\d+\s*%/g, " ")
+    .replace(/\b(share|upsell|reference|outsource(d)?|to|looking for)\b/gi, " ")
+    .replace(/[+/,;|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  const exact = employees.find((e) => e.full_name.toLowerCase().trim() === raw);
-  if (exact) return exact.id;
+  const candidates = [raw, cleaned].filter(Boolean);
 
-  const firstName = employees.find(
-    (e) => e.full_name.toLowerCase().split(/\s+/)[0] === raw
-  );
-  if (firstName) return firstName.id;
+  for (const candidate of candidates) {
+    const exact = employees.find((e) => e.full_name.toLowerCase().trim() === candidate);
+    if (exact) return exact.id;
+
+    const firstName = employees.find(
+      (e) => e.full_name.toLowerCase().split(/\s+/)[0] === candidate
+    );
+    if (firstName) return firstName.id;
+  }
 
   // Longest name-part wins (avoid matching tiny tokens)
   let best: { id: string; len: number } | null = null;
@@ -38,7 +52,7 @@ function findEmployeeId(
     for (const part of e.full_name.toLowerCase().split(/\s+/)) {
       if (part.length < 3) continue;
       const re = new RegExp(`\\b${part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-      if (re.test(raw) && (!best || part.length > best.len)) {
+      if (re.test(cleaned || raw) && (!best || part.length > best.len)) {
         best = { id: e.id, len: part.length };
       }
     }
@@ -113,6 +127,11 @@ async function upsertProjectFromSheetRow(
     row.team_members_raw,
   ]);
   const bdIds = collectEmployeeIdsFromLabels(employees, [row.bd_name]);
+  const closerIds = collectEmployeeIdsFromLabels(employees, [
+    row.closer_name,
+    // Legacy sheets: closer lived in Assigned Resource
+    row.closer_name ? null : row.dev_name,
+  ]);
 
   const payload = {
     name: row.name,
@@ -139,12 +158,16 @@ async function upsertProjectFromSheetRow(
     profile_name: row.profile_name,
     assigned_bd_label: row.bd_name,
     assigned_resource_label: row.dev_name,
+    closer_label: row.closer_name || null,
     is_monthly_retainer: row.is_monthly_retainer,
     retainer_amount: row.retainer_amount,
     expected_profit: row.expected_profit,
     manager_id: findEmployeeId(employees, row.manager_name),
     bd_id: bdIds[0] ?? findEmployeeId(employees, row.bd_name),
-    closing_developer_id: resourceIds[0] ?? findEmployeeId(employees, row.dev_name),
+    closing_developer_id:
+      closerIds[0] ??
+      findEmployeeId(employees, row.closer_name) ??
+      (row.closer_name ? null : resourceIds[0] ?? findEmployeeId(employees, row.dev_name)),
     source: "sheet_sync" as const,
     external_row_hash: row.external_row_hash,
     updated_at: new Date().toISOString(),

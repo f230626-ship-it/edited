@@ -30,12 +30,12 @@ export function MetricStrip({
   onFilterChange: (filter: string | null) => void;
 }) {
   const filterMap: Record<number, string | null> = {
-    0: null,
-    1: "active",
-    2: "on_hold",
-    3: "completed",
-    4: "retainers",
-    5: null,
+    0: "active",
+    1: null,
+    2: "retainers",
+    3: null,
+    4: "on_hold",
+    5: "completed",
   };
 
   return (
