@@ -19,6 +19,7 @@ import {
   Bell,
   Shield,
   Link2,
+  Filter,
 } from "lucide-react";
 
 const repLinks = [
@@ -26,6 +27,7 @@ const repLinks = [
   { href: "/sales/my-progress", label: "My Progress", icon: TrendingUp },
   { href: "/sales/leads", label: "My Leads", icon: UserCheck },
   { href: "/sales/meetings", label: "Meetings", icon: CalendarDays },
+  { href: "/sales/icp-filters", label: "ICP Filters", icon: Filter },
   { href: "/sales/history", label: "Log History", icon: History },
   { href: "/sales/linkedin", label: "LinkedIn", icon: Link2 },
 ];
@@ -35,6 +37,7 @@ const ownerLinks = [
   { href: "/sales/leads", label: "Leads", icon: UserCheck },
   { href: "/sales/meetings", label: "Meetings", icon: CalendarDays },
   { href: "/sales/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/sales/icp-filters", label: "ICP Filters", icon: Filter },
   { href: "/sales/admin/profiles", label: "Profiles", icon: Shield },
   { href: "/sales/admin/targets", label: "Targets", icon: Target },
   { href: "/sales/weekly", label: "Weekly Report", icon: FileBarChart },

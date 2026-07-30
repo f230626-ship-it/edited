@@ -212,7 +212,11 @@ export function Sidebar({
   const pathname = usePathname();
 
   const showSales = role === "admin" || role === "Developer";
-  const isBd = pmRole === "bd" || (designation || "").toLowerCase().includes("business developer") || (designation || "").toLowerCase().includes("bd ");
+  const designationLower = (designation || "").toLowerCase();
+  const isBd =
+    pmRole === "bd" ||
+    designationLower.includes("business developer") ||
+    /(^|[^a-z])bd([^a-z]|$)/.test(designationLower);
   const filteredEmployeeNav = employeeNav.filter((item) => {
     if (item.salesHref) return showSales || isBd;
     return !item.roles || item.roles.includes(role as UserRole);

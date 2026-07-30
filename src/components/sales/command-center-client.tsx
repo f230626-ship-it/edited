@@ -29,6 +29,7 @@ import {
   ArrowRight,
   Target,
   Zap,
+  Filter,
 } from "lucide-react";
 import { pct, progressColor, sumSnapshots } from "@/lib/sales/stats";
 import { cn } from "@/lib/utils";
@@ -152,6 +153,14 @@ export function CommandCenterClient({ data }: { data: CommandData }) {
           icon={Zap}
           accent="emerald"
           href="/sales/my-progress"
+        />
+        <MetricGlowCard
+          title="ICP Filters"
+          value="Open"
+          subtitle="Sheet sync & geos"
+          icon={Filter}
+          accent="amber"
+          href="/sales/icp-filters"
         />
       </div>
 

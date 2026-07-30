@@ -4,9 +4,11 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { MetricGlowCard } from "@/components/sales/metric-glow-card";
 import { Badge } from "@/components/ui/badge";
-import { Link2, MessageSquare, CalendarCheck, Trophy, TrendingUp, Zap, Target, ArrowUpRight } from "lucide-react";
+import Link from "next/link";
+import { Link2, MessageSquare, CalendarCheck, Trophy, TrendingUp, Zap, Target, ArrowUpRight, Filter } from "lucide-react";
 import { pct, progressColor, scoreLabel } from "@/lib/sales/stats";
 import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
 
 interface ProgressData {
   weekTotals: {
@@ -150,6 +152,29 @@ export function MyProgressClient({ data }: { data: ProgressData }) {
           href="/sales/leads"
         />
       </div>
+
+      <Card className="border-border/40 bg-card/80 backdrop-blur-sm">
+        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Filter className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-semibold">ICP Filters</p>
+              <p className="text-sm text-muted-foreground">
+                Review geos, winning filters, and sync the Sales Navigator sheet.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/sales/icp-filters"
+            className={cn(buttonVariants({ size: "sm" }), "shrink-0 shadow-md shadow-primary/15")}
+          >
+            Open ICP Filters
+            <ArrowUpRight className="ml-1.5 h-3.5 w-3.5" />
+          </Link>
+        </CardContent>
+      </Card>
 
       {/* Weekly Progress */}
       <Card className="border-border/40 bg-card/80 backdrop-blur-sm">

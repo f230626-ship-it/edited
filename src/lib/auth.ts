@@ -212,12 +212,20 @@ export function isSalesOwner(role: Employee["role"]) {
   return role === "admin";
 }
 
-export function isBdEmployee(employee: Pick<Employee, "designation">) {
+export function isBdEmployee(
+  employee: Pick<Employee, "designation" | "pm_role">
+) {
+  if (employee.pm_role === "bd") return true;
   const d = (employee.designation || "").toLowerCase();
-  return d.includes("business developer") || d.includes("bd");
+  return (
+    d.includes("business developer") ||
+    /(^|[^a-z])bd([^a-z]|$)/.test(d)
+  );
 }
 
-export function canAccessSales(employee: Pick<Employee, "role" | "designation">) {
+export function canAccessSales(
+  employee: Pick<Employee, "role" | "designation" | "pm_role">
+) {
   return employee.role === "admin" || isBdEmployee(employee);
 }
 

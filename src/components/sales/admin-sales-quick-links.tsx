@@ -7,6 +7,7 @@ import {
   Target,
   FileBarChart,
   ArrowRight,
+  Filter,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,12 @@ const links = [
     label: "Command Center",
     description: "Team KPIs, scorecards, and pipeline health",
     icon: LayoutDashboard,
+  },
+  {
+    href: "/sales/icp-filters",
+    label: "ICP Filters",
+    description: "Sync Sales Navigator filters from Google Sheet",
+    icon: Filter,
   },
   {
     href: "/sales/admin/profiles",

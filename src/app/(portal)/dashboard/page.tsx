@@ -1,8 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, canAccessSales } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Bell, CalendarDays, Package, LayoutDashboard } from "lucide-react";
+import { Bell, CalendarDays, Package, LayoutDashboard, Filter, ClipboardList, TrendingUp, UserCheck } from "lucide-react";
 import { formatDate } from "@/lib/utils/date";
 import { LEAVE_TYPE_LABELS, LEAVE_STATUS_LABELS, STATUS_COLORS } from "@/lib/constants";
 import Link from "next/link";
@@ -70,6 +70,7 @@ export default async function DashboardPage() {
   ]);
 
   const teamSize = hierarchy.directReports.length + hierarchy.leadTeam.length;
+  const showSalesShortcuts = canAccessSales(employee) && employee.role !== "admin";
 
   const annualRemaining = (leaveBalance?.annual_quota ?? 0) - (leaveBalance?.annual_used ?? 0);
   const sickRemaining = (leaveBalance?.sick_quota ?? 0) - (leaveBalance?.sick_used ?? 0);
@@ -103,6 +104,40 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {showSalesShortcuts && (
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/10 via-card to-amber-500/5 shadow-lg shadow-primary/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-bold tracking-tight">Sales shortcuts</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Jump into outreach tools — including ICP Filters and sheet sync.
+            </p>
+          </CardHeader>
+          <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { href: "/sales/my-day", label: "Daily Log", icon: ClipboardList },
+              { href: "/sales/my-progress", label: "My Progress", icon: TrendingUp },
+              { href: "/sales/icp-filters", label: "ICP Filters", icon: Filter },
+              { href: "/sales/leads", label: "My Leads", icon: UserCheck },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    buttonVariants({ variant: "outline" }),
+                    "h-auto justify-start gap-3 border-border/50 bg-background/70 px-4 py-3 hover:border-primary/40 hover:bg-primary/5"
+                  )}
+                >
+                  <Icon className="h-4 w-4 text-primary" />
+                  <span className="font-semibold">{item.label}</span>
+                </Link>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Clickable Stat Cards — handled by client component */}
       <DashboardClient

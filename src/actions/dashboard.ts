@@ -22,7 +22,7 @@ export async function getDashboardAnalyticsData(
   const employee = await requireAuth();
   const supabase = createAdminClient();
 
-  const isBD = isBdEmployee(employee) || employee.pm_role === "bd";
+  const isBD = isBdEmployee(employee);
   const isAdmin = employee.role === "admin" || employee.pm_role === "admin";
   const role: "admin" | "bd" | "engineering" = isAdmin ? "admin" : isBD ? "bd" : "engineering";
 
