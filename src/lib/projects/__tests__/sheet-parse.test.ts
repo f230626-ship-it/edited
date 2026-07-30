@@ -22,6 +22,8 @@ describe("projects sheet parse", () => {
     "Profile Name",
     "Assigned BD",
     "End Date",
+    "Platform",
+    "Closer",
   ];
 
   it("maps MindVista sheet headers exactly", () => {
@@ -39,6 +41,8 @@ describe("projects sheet parse", () => {
     expect(map.profile_name).toBe(10);
     expect(map.bd_name).toBe(11);
     expect(map.expected_delivery_date).toBe(12);
+    expect(map.lead_source).toBe(13);
+    expect(map.closer_name).toBe(14);
   });
 
   it("parses money and ignores B2C digit leak", () => {
@@ -99,6 +103,8 @@ describe("projects sheet parse", () => {
         "Fiza, Face (Abdullah) ",
         "Asim",
         "",
+        "Upwork",
+        "Abdullah",
       ],
     ]);
     expect(rows).toHaveLength(1);
@@ -112,7 +118,22 @@ describe("projects sheet parse", () => {
     expect(row.status).toBe("In Progress");
     expect(row.dev_name).toBe("Fatima + Looking for GHL");
     expect(row.bd_name).toBe("Asim");
-    expect(row.profile_name).toBe("Fiza, Face (Abdullah)");
+    expect(row.profile_name).toBe("Fiza");
     expect(row.start_date).toBe("2026-04-13");
+    expect(row.lead_source).toBe("Upwork");
+    expect(row.closer_name).toBe("Abdullah");
+  });
+
+  it("maps Platform aliases into lead_source", () => {
+    expect(mapSheetHeaders(["Platform"]).lead_source).toBe(0);
+    expect(mapSheetHeaders(["Closing Platform"]).lead_source).toBe(0);
+    expect(mapSheetHeaders(["Closed From"]).lead_source).toBe(0);
+  });
+
+  it("maps Closer column separately from Assigned Resource", () => {
+    const map = mapSheetHeaders(["Assigned Resource", "Closer", "Profile Name"]);
+    expect(map.dev_name).toBe(0);
+    expect(map.closer_name).toBe(1);
+    expect(map.profile_name).toBe(2);
   });
 });

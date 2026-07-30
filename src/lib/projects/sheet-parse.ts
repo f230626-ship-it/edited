@@ -21,6 +21,16 @@ const EXACT_HEADER_ALIASES: Record<string, string> = {
   "profile name": "profile_name",
   "assigned bd": "bd_name",
   "end date": "expected_delivery_date",
+  // Who won / closed the deal (separate from delivery resource)
+  closer: "closer_name",
+  "closed by": "closer_name",
+  "won by": "closer_name",
+  "project closer": "closer_name",
+  // Closing platform (Fiverr / Upwork / LinkedIn / …) → CRM lead_source
+  platform: "lead_source",
+  "lead source": "lead_source",
+  "closed from": "lead_source",
+  "closing platform": "lead_source",
 };
 
 export const PROJECT_SHEET_COLUMN_RULES: {
@@ -36,7 +46,7 @@ export const PROJECT_SHEET_COLUMN_RULES: {
   { field: "company_name", keywords: ["company name", "organization", "company", "firm"] },
   { field: "description", keywords: ["description", "details", "summary", "notes", "about"] },
   { field: "industry", keywords: ["industry", "sector", "domain"] },
-  { field: "lead_source", keywords: ["lead source", "lead_source", "origin"] },
+  { field: "lead_source", keywords: ["platform", "lead source", "lead_source", "closed from", "closing platform", "origin"] },
   { field: "start_date", keywords: ["start date", "project start", "start_date", "commencement"] },
   {
     field: "expected_delivery_date",
@@ -60,14 +70,19 @@ export const PROJECT_SHEET_COLUMN_RULES: {
   { field: "currency", keywords: ["currency", "curr"] },
   { field: "progress_percentage", keywords: ["progress", "completion", "percentage"] },
   { field: "manager_name", keywords: ["project manager", "project lead", "handled by", "manager"] },
-  { field: "bd_name", keywords: ["assigned bd", "business development", "bd rep", "sales rep", "bd"] },
+  { field: "bd_name", keywords: ["assigned bd", "business development", "bd rep", "sales rep"] },
+  {
+    field: "closer_name",
+    keywords: ["closer", "closed by", "won by", "project closer", "deal closer"],
+  },
   {
     field: "dev_name",
     keywords: ["assigned resource", "front face", "frontface", "developer", "engineer", "resource"],
   },
   { field: "team_members_raw", keywords: ["team members", "members", "resources", "assignees", "team"] },
   { field: "payment_status", keywords: ["payment status", "billing status"] },
-  { field: "profile_name", keywords: ["profile name", "outreach profile", "sales profile", "profile"] },
+  // Keep "profile" specific — avoid matching unrelated columns
+  { field: "profile_name", keywords: ["profile name", "outreach profile", "sales profile"] },
   { field: "is_monthly_retainer", keywords: ["monthly retainer", "retainer"] },
   { field: "retainer_amount", keywords: ["retainer amount", "monthly amount", "recurring amount"] },
   { field: "expected_profit", keywords: ["expected profit", "profit", "margin"] },
@@ -101,6 +116,7 @@ export type ProjectSheetRow = {
   expected_profit: number | null;
   manager_name: string | null;
   bd_name: string | null;
+  closer_name: string | null;
   dev_name: string | null;
   team_members_raw: string | null;
   external_row_hash: string;
@@ -258,11 +274,12 @@ export function parseDate(raw: string): string | null {
 export function normalizeProjectStatus(raw: string): string {
   const v = raw.trim().toLowerCase();
   if (!v) return "Lead Won";
+  // Sheet language first
   if (v === "active" || v.includes("in progress") || v === "ongoing") return "In Progress";
   if (v === "ended" || v.includes("complete") || v === "done" || v === "delivered") return "Completed";
+  if (v === "paused" || v.includes("pause")) return "Paused";
   if (v.includes("trial") || v.includes("trail")) return "Onboarding";
   if (v.includes("hold")) return "On Hold";
-  if (v.includes("pause")) return "Paused";
   if (v.includes("cancel")) return "Cancelled";
   if (v.includes("archiv")) return "Archived";
   if (v.includes("maintain")) return "Maintenance";
@@ -274,6 +291,19 @@ export function normalizeProjectStatus(raw: string): string {
     "Maintenance", "Paused", "Cancelled", "Archived",
   ].find((s) => s.toLowerCase() === v);
   return exact || "In Progress";
+}
+
+/** Clean profile labels after sheet cleanup (single profile preferred). */
+export function normalizeProfileName(raw: string): string | null {
+  if (!raw?.trim()) return null;
+  let v = raw.trim().replace(/\s+/g, " ");
+  // Drop trailing parenthetical notes: "Fiza (Abdullah)" → "Fiza"
+  v = v.replace(/\s*\([^)]*\)\s*$/g, "").trim();
+  // If still comma/plus lists, keep the first primary profile only
+  if (/[,+/|]/.test(v)) {
+    v = v.split(/[,+/|]/)[0].trim();
+  }
+  return v || null;
 }
 
 export function normalizeIndustry(raw: string): string {
@@ -290,11 +320,22 @@ export function normalizeIndustry(raw: string): string {
 export function normalizeLeadSource(raw: string): string {
   const valid = ["Fiverr", "Upwork", "LinkedIn", "Website", "Referral", "Cold Email", "Other"];
   if (!raw) return "Other";
-  const lower = raw.toLowerCase();
+  const lower = raw.toLowerCase().trim();
   if (lower.includes("refer")) return "Referral";
   if (lower.includes("upwork")) return "Upwork";
   if (lower.includes("fiverr")) return "Fiverr";
-  if (lower.includes("linkedin")) return "LinkedIn";
+  if (lower.includes("linkedin") || lower === "li") return "LinkedIn";
+  if (lower.includes("cold") || lower.includes("outreach") || lower.includes("email campaign")) {
+    return "Cold Email";
+  }
+  if (
+    lower.includes("website") ||
+    lower.includes("web form") ||
+    lower === "web" ||
+    lower.includes("organic")
+  ) {
+    return "Website";
+  }
   return valid.find((s) => s.toLowerCase() === lower) || "Other";
 }
 
@@ -405,7 +446,7 @@ export function parseProjectSheetRows(values: string[][]): ProjectSheetRow[] {
     const start = parseDate(cell(row, col.start_date)) || today;
     const end = parseDate(cell(row, col.expected_delivery_date)) || start;
     const project_type = cell(row, col.project_type) || null;
-    const profile_name = cell(row, col.profile_name) || null;
+    const profile_name = normalizeProfileName(cell(row, col.profile_name));
     const project_rate = cell(row, col.project_rate) || null;
     const payment_structure = cell(row, col.payment_structure) || null;
 
@@ -460,6 +501,8 @@ export function parseProjectSheetRows(values: string[][]): ProjectSheetRow[] {
       expected_profit: parseMoney(cell(row, col.expected_profit)) || null,
       manager_name: cell(row, col.manager_name) || null,
       bd_name: cell(row, col.bd_name) || null,
+      closer_name: cell(row, col.closer_name) || null,
+      // Fallback: older sheets used Assigned Resource as the closer
       dev_name: cell(row, col.dev_name) || null,
       team_members_raw: cell(row, col.team_members_raw) || null,
       external_row_hash: "",

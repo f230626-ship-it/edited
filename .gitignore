@@ -23,6 +23,19 @@
 # misc
 .DS_Store
 *.pem
+*.txt
+!README.txt
+temp_*
+scratch/
+supabase/.temp/
+
+# one-off agent / debug dumps
+docs/*_RESULTS.json
+docs/*_AUDIT*.md
+docs/*_E2E*.md
+docs/*_QA*.md
+docs/*_HANDOFF*.md
+
 
 # debug
 npm-debug.log*

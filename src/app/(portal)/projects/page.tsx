@@ -20,6 +20,7 @@ export default async function ProjectsPage() {
     .select(`
       *,
       bd:employees!bd_id(id, full_name, email),
+      closing_developer:employees!closing_developer_id(id, full_name, email),
       manager:employees!manager_id(id, full_name, email),
       resources:project_resources(
         *,

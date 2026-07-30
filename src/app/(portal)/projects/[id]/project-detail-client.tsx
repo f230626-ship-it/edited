@@ -43,7 +43,7 @@ type ProjectWithRelations = Project & {
   manager: Pick<Employee, "id" | "full_name" | "email"> | null;
   closing_developer: Pick<Employee, "id" | "full_name" | "email"> | null;
   resources: (ProjectResource & {
-    employee: Pick<Employee, "id" | "full_name" | "email" | "designation" | "profile_photo_url">;
+    employee: Pick<Employee, "id" | "full_name" | "email" | "designation" | "profile_photo_url"> | null;
   })[];
 };
 
@@ -324,24 +324,29 @@ export default function ProjectDetailClient({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {project.resources.map((r) => (
+                  {project.resources.map((r) => {
+                    const member = r.employee;
+                    const memberName = member?.full_name || "Unknown member";
+                    const initials = memberName
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .slice(0, 2);
+
+                    return (
                     <div
                       key={r.id}
                       className="flex items-center justify-between rounded-lg border border-border/60 p-3 hover:bg-muted/30 transition-colors"
                     >
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9">
-                          <AvatarImage src={r.employee.profile_photo_url ?? undefined} />
+                          <AvatarImage src={member?.profile_photo_url ?? undefined} />
                           <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                            {r.employee.full_name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .slice(0, 2)}
+                            {initials}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="text-sm font-semibold">{r.employee.full_name}</p>
+                          <p className="text-sm font-semibold">{memberName}</p>
                           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                             <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                               {r.role}
@@ -390,7 +395,8 @@ export default function ProjectDetailClient({
                         )}
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -416,12 +422,23 @@ export default function ProjectDetailClient({
                 fallback={project.assigned_bd_label || "Unassigned"}
               />
               <OwnerRow
-                label="Assigned Resource / Front Face"
+                label="Closer (won deal)"
                 person={project.closing_developer}
+                fallback={project.closer_label || "Unassigned"}
+              />
+              <OwnerRow
+                label="Assigned Resource / Front Face"
+                person={null}
                 fallback={project.assigned_resource_label || "Unassigned"}
               />
-              {(project.assigned_bd_label || project.assigned_resource_label) && (
+              {(project.assigned_bd_label || project.assigned_resource_label || project.closer_label) && (
                 <div className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-1.5 text-xs">
+                  {project.closer_label && (
+                    <p>
+                      <span className="text-muted-foreground">Sheet Closer: </span>
+                      <span className="font-medium">{project.closer_label}</span>
+                    </p>
+                  )}
                   {project.assigned_bd_label && (
                     <p>
                       <span className="text-muted-foreground">Sheet BD: </span>
