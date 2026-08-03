@@ -23,6 +23,7 @@ const DATASET_PATTERNS: Record<LinkedInDatasetType, RegExp[]> = {
   certifications: [/^certifications\.csv$/i, /^Certifications\.csv$/],
   invitations: [/^invitations\.csv$/i, /^Invitations\.csv$/],
   connections: [/^connections\.csv$/i, /^Connections\.csv$/],
+  messages: [/^messages\.csv$/i, /^Messages\.csv$/],
   company_follows: [
     /^company.*follows?\.csv$/i,
     /^Company Follows\.csv$/,
@@ -65,58 +66,110 @@ export function detectDatasetType(filename: string): LinkedInDatasetType {
 /**
  * Parse CSV string to array of objects
  */
+/**
+ * Parse LinkedIn CSV exports.
+ * Must be quote-aware across newlines — messages.csv embeds newlines inside CONTENT.
+ */
 export function parseCSV(csvContent: string): Record<string, any>[] {
-  const lines = csvContent.split('\n').filter((line) => line.trim().length > 0);
-  
-  if (lines.length === 0) {
-    return [];
-  }
+  const records = splitCSVRecords(csvContent);
+  if (records.length === 0) return [];
 
-  // Find header row: some LinkedIn exports (like Connections.csv) have "Notes:" rows at the top.
-  let headerIndex = 0;
   const knownHeaders = [
-    'first name', 'last name', 'email address', 'company', 'position', 'connected on',
-    'company name', 'title', 'name', 'skill name', 'school name', 'degree name',
-    'direction', 'from', 'to', 'sent at', 'course title', 'event name', 'media type'
+    "first name",
+    "last name",
+    "email address",
+    "company",
+    "position",
+    "connected on",
+    "company name",
+    "title",
+    "name",
+    "skill name",
+    "school name",
+    "degree name",
+    "direction",
+    "from",
+    "to",
+    "sent at",
+    "course title",
+    "event name",
+    "media type",
+    "conversation id",
+    "conversation title",
+    "sender profile url",
+    "folder",
+    "content",
   ];
-  
-  for (let i = 0; i < Math.min(10, lines.length); i++) {
-    const parsed = parseCSVLine(lines[i]).map(h => h.toLowerCase().trim());
-    const hasKnownHeader = parsed.some(h => knownHeaders.includes(h));
-    
-    if (hasKnownHeader) {
+
+  let headerIndex = 0;
+  for (let i = 0; i < Math.min(10, records.length); i++) {
+    const parsed = parseCSVLine(records[i]).map((h) => h.toLowerCase().trim());
+    if (parsed.some((h) => knownHeaders.includes(h))) {
       headerIndex = i;
       break;
     }
   }
 
-  // Parse header
-  const headers = parseCSVLine(lines[headerIndex]);
-  
-  // Parse data rows
+  const headers = parseCSVLine(records[headerIndex]);
   const data: Record<string, any>[] = [];
-  
-  for (let i = headerIndex + 1; i < lines.length; i++) {
-    const values = parseCSVLine(lines[i]);
-    
-    if (values.length === headers.length) {
-      const row: Record<string, any> = {};
-      headers.forEach((header, index) => {
-        row[header] = values[index] || null;
-      });
-      data.push(row);
-    }
+
+  for (let i = headerIndex + 1; i < records.length; i++) {
+    const values = parseCSVLine(records[i]);
+    if (values.length === 0) continue;
+    // Allow trailing empty fields; require at least header count or pad
+    if (values.length < headers.length * 0.5) continue;
+    const row: Record<string, any> = {};
+    headers.forEach((header, index) => {
+      const raw = values[index];
+      row[header] = raw === undefined || raw === "" ? null : raw;
+    });
+    data.push(row);
   }
 
   return data;
 }
 
+/** Split CSV into logical records, keeping newlines inside quoted fields. */
+function splitCSVRecords(csvContent: string): string[] {
+  const records: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < csvContent.length; i++) {
+    const char = csvContent[i];
+    const next = csvContent[i + 1];
+
+    if (char === '"') {
+      current += char;
+      if (inQuotes && next === '"') {
+        current += next;
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && next === "\n") i++;
+      if (current.trim().length > 0) records.push(current);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.trim().length > 0) records.push(current);
+  return records;
+}
+
 /**
- * Parse a single CSV line handling quotes
+ * Parse a single CSV record (may contain embedded newlines already preserved).
  */
 function parseCSVLine(line: string): string[] {
   const result: string[] = [];
-  let current = '';
+  let current = "";
   let inQuotes = false;
 
   for (let i = 0; i < line.length; i++) {
@@ -125,25 +178,20 @@ function parseCSVLine(line: string): string[] {
 
     if (char === '"') {
       if (inQuotes && nextChar === '"') {
-        // Escaped quote
         current += '"';
         i++;
       } else {
-        // Toggle quote mode
         inQuotes = !inQuotes;
       }
-    } else if (char === ',' && !inQuotes) {
-      // Field separator
+    } else if (char === "," && !inQuotes) {
       result.push(current.trim());
-      current = '';
+      current = "";
     } else {
       current += char;
     }
   }
 
-  // Add last field
   result.push(current.trim());
-
   return result;
 }
 
@@ -191,6 +239,12 @@ export function normalizeDate(dateStr: string | null | undefined): string | null
   // YYYY-MM-DD (already ISO)
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
     return str;
+  }
+
+  // YYYY-MM-DD HH:MM:SS UTC (LinkedIn messages.csv)
+  const isoTimeMatch = str.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\s*UTC)?/);
+  if (isoTimeMatch) {
+    return isoTimeMatch[1];
   }
 
   // MM/DD/YYYY HH:MM (LinkedIn invitations "Sent At")
@@ -403,25 +457,31 @@ export function parseCertificationsData(data: Record<string, any>[]): any[] {
   }));
 }
 
+/** Normalize LinkedIn invitation Direction values to DB-safe enum. */
+export function normalizeInvitationDirection(
+  raw: string | null | undefined
+): "INCOMING" | "OUTGOING" {
+  const d = (raw || "").toUpperCase().trim();
+  if (d === "INCOMING" || d === "RECEIVED" || d === "INBOX") return "INCOMING";
+  return "OUTGOING"; // SENT, OUTGOING, or default
+}
+
 /**
  * Parse Invitations CSV
  */
 export function parseInvitationsData(data: Record<string, any>[]): any[] {
-  if (data.length > 0) {
-    console.log("[parseInvitationsData] CSV headers:", Object.keys(data[0]));
-    console.log("[parseInvitationsData] first row sample:", JSON.stringify(data[0]));
-  }
   return data.map((row) => {
-    const direction = (pickColumn(row, ['Direction', 'direction', 'dir', 'Dir', 'Invitation Direction'])?.toUpperCase() || 'OUTGOING') as 'INCOMING' | 'OUTGOING';
+    const direction = normalizeInvitationDirection(
+      pickColumn(row, ["Direction", "direction", "dir", "Dir", "Invitation Direction"])
+    );
 
-    // Extract target person's name based on direction
-    // OUTGOING: target is in 'To' column, INCOMING: target is in 'From' column
+    // OUTGOING: target is in 'To'; INCOMING: target is in 'From'
     let first_name: string | null = null;
     let last_name: string | null = null;
-    const fullName = pickColumn(row, direction === 'OUTGOING' ? ['To', 'to'] : ['From', 'from']);
-    if (fullName && typeof fullName === 'string') {
+    const fullName = pickColumn(row, direction === "OUTGOING" ? ["To", "to"] : ["From", "from"]);
+    if (fullName && typeof fullName === "string") {
       const trimmed = fullName.trim();
-      const spaceIdx = trimmed.indexOf(' ');
+      const spaceIdx = trimmed.indexOf(" ");
       if (spaceIdx > 0) {
         first_name = trimmed.substring(0, spaceIdx).trim() || null;
         last_name = trimmed.substring(spaceIdx + 1).trim() || null;
@@ -434,10 +494,140 @@ export function parseInvitationsData(data: Record<string, any>[]): any[] {
       direction,
       first_name,
       last_name,
-      invitation_date: normalizeDate(pickColumn(row, ['Sent At', 'Sent On', 'sentAt', 'sentOn', 'Date', 'date', 'Invitation Date', 'InvitationDate', 'Date Sent', 'Created On', 'Created', 'Sent', 'Invited On', 'Invitation Sent', 'Invitation Created'])),
-      message: pickColumn(row, ['Message', 'message', 'Note', 'note', 'Notes', 'Custom Message', 'Invitation Note']),
+      invitee_profile_url:
+        pickColumn(row, [
+          "inviteeProfileUrl",
+          "Invitee Profile URL",
+          "invitee_profile_url",
+          "Profile URL",
+        ]) || null,
+      invitation_date: normalizeDate(
+        pickColumn(row, [
+          "Sent At",
+          "Sent On",
+          "sentAt",
+          "sentOn",
+          "Date",
+          "date",
+          "Invitation Date",
+          "InvitationDate",
+          "Date Sent",
+          "Created On",
+          "Created",
+          "Sent",
+          "Invited On",
+          "Invitation Sent",
+          "Invitation Created",
+        ])
+      ),
+      message: pickColumn(row, [
+        "Message",
+        "message",
+        "Note",
+        "note",
+        "Notes",
+        "Custom Message",
+        "Invitation Note",
+      ]),
     };
   });
+}
+
+export interface ParsedLinkedInMessage {
+  conversation_id: string | null;
+  conversation_title: string | null;
+  from_name: string | null;
+  to_name: string | null;
+  sender_profile_url: string | null;
+  recipient_profile_urls: string | null;
+  sent_at: string | null;
+  subject: string | null;
+  content_preview: string | null;
+  folder: string | null;
+  is_from_owner: boolean;
+}
+
+function normalizeMessageDateTime(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const str = raw.trim();
+  // 2026-07-22 11:48:20 UTC
+  const m = str.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/);
+  if (m) return `${m[1]}T${m[2]}Z`;
+  const dateOnly = normalizeDate(str);
+  return dateOnly ? `${dateOnly}T00:00:00Z` : null;
+}
+
+/**
+ * Parse messages.csv — LinkedIn messaging export.
+ * `ownerNames` should include display names from Profile.csv (e.g. "Abdul Hafeez").
+ */
+export function parseMessagesData(
+  data: Record<string, any>[],
+  ownerNames: string[] = []
+): ParsedLinkedInMessage[] {
+  const owners = ownerNames
+    .map((n) => n.trim().toLowerCase())
+    .filter(Boolean);
+
+  return data.map((row) => {
+    const from_name = pickColumn(row, ["FROM", "From", "from", "Sender"]) || null;
+    const to_name = pickColumn(row, ["TO", "To", "to", "Recipient"]) || null;
+    const fromLower = (from_name || "").toLowerCase().trim();
+    const is_from_owner =
+      owners.length === 0
+        ? false
+        : owners.some((o) => fromLower === o || fromLower.includes(o) || o.includes(fromLower));
+
+    const content = pickColumn(row, ["CONTENT", "Content", "content", "Message", "Body"]) || "";
+    const content_preview =
+      typeof content === "string" ? content.slice(0, 280) : null;
+
+    return {
+      conversation_id:
+        pickColumn(row, ["CONVERSATION ID", "Conversation ID", "conversation_id", "ConversationId"]) ||
+        null,
+      conversation_title:
+        pickColumn(row, [
+          "CONVERSATION TITLE",
+          "Conversation Title",
+          "conversation_title",
+        ]) || null,
+      from_name,
+      to_name,
+      sender_profile_url:
+        pickColumn(row, ["SENDER PROFILE URL", "Sender Profile URL", "sender_profile_url"]) ||
+        null,
+      recipient_profile_urls:
+        pickColumn(row, [
+          "RECIPIENT PROFILE URLS",
+          "Recipient Profile URLs",
+          "recipient_profile_urls",
+        ]) || null,
+      sent_at: normalizeMessageDateTime(
+        pickColumn(row, ["DATE", "Date", "date", "Sent At", "Timestamp", "Created At"])
+      ),
+      subject: pickColumn(row, ["SUBJECT", "Subject", "subject"]) || null,
+      content_preview,
+      folder: pickColumn(row, ["FOLDER", "Folder", "folder"]) || null,
+      is_from_owner,
+    };
+  });
+}
+
+export function detectPartialExport(datasetTypes: string[]): boolean {
+  const set = new Set(datasetTypes.map((t) => t.toLowerCase()));
+  const hasInvites = set.has("invitations");
+  const hasMessages = set.has("messages");
+  // Partial if missing either outreach-critical dataset
+  return !(hasInvites && hasMessages);
+}
+
+export function extractOwnerDisplayName(profileRow: Record<string, any> | null): string | null {
+  if (!profileRow) return null;
+  const first = pickColumn(profileRow, ["First Name", "first_name", "FirstName"]) || "";
+  const last = pickColumn(profileRow, ["Last Name", "last_name", "LastName"]) || "";
+  const full = `${first} ${last}`.trim();
+  return full || null;
 }
 
 /**
@@ -489,16 +679,14 @@ export function parseJobApplicationsData(data: Record<string, any>[]): any[] {
  * Parse Connections CSV
  */
 export function parseConnectionsData(data: Record<string, any>[]): any[] {
-  if (data.length > 0) {
-    console.log("[parseConnectionsData] CSV headers:", Object.keys(data[0]));
-    console.log("[parseConnectionsData] first row sample:", JSON.stringify(data[0]));
-  }
   return data.map((row) => ({
     first_name: pickColumn(row, ['First Name', 'first_name', 'FirstName', 'first', 'Given Name', 'First', 'Name']),
     last_name: pickColumn(row, ['Last Name', 'last_name', 'LastName', 'last', 'Family Name', 'Surname', 'Last']),
     email_address: pickColumn(row, ['Email Address', 'email_address', 'Email', 'E-mail Address', 'E-mail', 'email']),
     company: pickColumn(row, ['Company', 'company', 'Organization', 'organisation']),
     position: pickColumn(row, ['Position', 'position', 'Title', 'Job Title', 'job-title']),
+    profile_url:
+      pickColumn(row, ['URL', 'Url', 'url', 'Profile URL', 'ProfileUrl', 'LinkedIn URL']) || null,
     connected_on: normalizeDate(pickColumn(row, ['Connected On', 'ConnectedOn', 'connected_on', 'Date', 'Connection Date', 'Connected Date', 'Connected'])),
   }));
 }

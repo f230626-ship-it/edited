@@ -17,6 +17,7 @@ import { AlertCircle, CheckCircle2, Download, FileSpreadsheet, Loader2, UploadCl
 import { toast } from "sonner";
 import type { Employee, Project } from "@/types/database";
 import { bulkImportProjects } from "@/actions/projects";
+import { normalizeProjectStatus } from "@/lib/projects/sheet-parse";
 
 interface ImportDialogProps {
   open: boolean;
@@ -403,26 +404,11 @@ export function ImportDialog({
             }
           });
 
-          const validStatuses = [
-            "Lead Won", "Onboarding", "In Progress", "On Hold", "Completed",
-            "Maintenance", "Paused", "Cancelled", "Archived", "Active", "Ended",
-          ];
           let status = "Lead Won";
           if (rawStatus) {
-            const matched = validStatuses.find((s) => s.toLowerCase() === rawStatus.toLowerCase());
-            if (matched) {
-              status = matched;
-            } else {
-              const fuzzyMatch = validStatuses.find((s) =>
-                s.toLowerCase().includes(rawStatus.toLowerCase()) ||
-                rawStatus.toLowerCase().includes(s.toLowerCase().split(" ")[0])
-              );
-              if (fuzzyMatch) {
-                status = fuzzyMatch;
-                warnings.push(`Status "${rawStatus}" auto-corrected to "${fuzzyMatch}".`);
-              } else {
-                warnings.push(`Status "${rawStatus}" unrecognized — defaulting to "Lead Won".`);
-              }
+            status = normalizeProjectStatus(rawStatus);
+            if (status !== rawStatus.trim()) {
+              warnings.push(`Status "${rawStatus}" mapped to "${status}".`);
             }
           }
 

@@ -134,6 +134,9 @@ const CHART_COLORS = [
 ];
 
 /** Sheet-facing lifecycle buckets */
+/** Sheet "Active" maps to In Progress — used for MRR / portfolio metrics */
+const SHEET_ACTIVE_STATUSES = ["In Progress"] as const;
+/** Broader ops bucket for list filters (includes onboarding & maintenance) */
 const ACTIVE_STATUSES = ["In Progress", "Onboarding", "Maintenance"] as const;
 const PAUSED_STATUSES = ["Paused", "On Hold"] as const;
 const ENDED_STATUSES = ["Completed"] as const;
@@ -183,16 +186,19 @@ function isJunkPersonLabel(raw: string | null | undefined): boolean {
 
 function resolvePersonFromLabel(
   label: string | null | undefined,
-  employees: Employee[]
+  employees: Employee[],
+  options?: { preferNonBd?: boolean }
 ): { id: string | null; name: string } | null {
   const raw = (label || "").trim();
   if (!raw || isJunkPersonLabel(raw)) return null;
+  if (options?.preferNonBd && /\boutsource\b/i.test(raw)) return null;
+
+  const aliases: Record<string, string[]> = {
+    moin: ["moin", "moeen"],
+    moeen: ["moeen", "moin"],
+  };
 
   const lower = raw.toLowerCase();
-  const exact = employees.find((e) => e.full_name.toLowerCase().trim() === lower);
-  if (exact) return { id: exact.id, name: exact.full_name };
-
-  // Strip share/percentage/notes: "Irfan 50% share" → "Irfan"
   const cleaned = raw
     .replace(/\([^)]*\)/g, " ")
     .replace(/\d+\s*%/g, " ")
@@ -203,18 +209,41 @@ function resolvePersonFromLabel(
 
   if (!cleaned || isJunkPersonLabel(cleaned)) return null;
 
-  const byFirst = employees.find(
-    (e) => e.full_name.toLowerCase().split(/\s+/)[0] === cleaned.toLowerCase()
-  );
-  if (byFirst) return { id: byFirst.id, name: byFirst.full_name };
+  const tokens = new Set<string>([lower, cleaned.toLowerCase()]);
+  for (const t of [...tokens]) {
+    for (const a of aliases[t] || []) tokens.add(a);
+  }
 
-  let best: { id: string; name: string; len: number } | null = null;
-  for (const e of employees) {
+  const ranked = [...employees].sort((a, b) => {
+    if (!options?.preferNonBd) return 0;
+    const score = (e: Employee) =>
+      e.pm_role === "bd" ? 2 : e.pm_role === "developer" || e.pm_role === "admin" ? 0 : 1;
+    return score(a) - score(b);
+  });
+
+  for (const candidate of tokens) {
+    const exact = ranked.find((e) => e.full_name.toLowerCase().trim() === candidate);
+    if (exact) return { id: exact.id, name: exact.full_name };
+
+    const byFirst = ranked.find(
+      (e) => e.full_name.toLowerCase().split(/\s+/)[0] === candidate
+    );
+    if (byFirst) return { id: byFirst.id, name: byFirst.full_name };
+  }
+
+  let best: { id: string; name: string; len: number; rank: number } | null = null;
+  for (const e of ranked) {
+    const rank =
+      options?.preferNonBd && e.pm_role === "bd"
+        ? 2
+        : options?.preferNonBd && (e.pm_role === "developer" || e.pm_role === "admin")
+          ? 0
+          : 1;
     for (const part of e.full_name.toLowerCase().split(/\s+/)) {
       if (part.length < 3) continue;
       const re = new RegExp(`\\b${part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-      if (re.test(cleaned) && (!best || part.length > best.len)) {
-        best = { id: e.id, name: e.full_name, len: part.length };
+      if (re.test(cleaned) && (!best || part.length > best.len || (part.length === best.len && rank < best.rank))) {
+        best = { id: e.id, name: e.full_name, len: part.length, rank };
       }
     }
   }
@@ -222,9 +251,34 @@ function resolvePersonFromLabel(
 
   // Only accept cleaned label if it looks like a person name (2–40 letters/spaces)
   if (/^[A-Za-z][A-Za-z .'-]{1,39}$/.test(cleaned) && cleaned.split(/\s+/).length <= 4) {
-    return { id: null, name: cleaned };
+    // Canonicalize Moin → Moeen for display when unmatched
+    const display =
+      cleaned.toLowerCase() === "moin" ? "Moeen" : cleaned;
+    return { id: null, name: display };
   }
   return null;
+}
+
+/** Resolve closing developer from FK + sheet closer label only (never BD / resource). */
+function resolveCloser(
+  project: {
+    closer_label?: string | null;
+    closing_developer_id?: string | null;
+    closing_developer?: Pick<Employee, "id" | "full_name" | "pm_role"> | null;
+  },
+  employees: Employee[]
+): { id: string | null; name: string } | null {
+  if (project.closing_developer_id) {
+    const emp =
+      employees.find((e) => e.id === project.closing_developer_id) ||
+      (project.closing_developer as Employee | undefined) ||
+      null;
+    // Reject BD wrongly stored as closer
+    if (emp && emp.pm_role !== "bd") {
+      return { id: emp.id, name: emp.full_name };
+    }
+  }
+  return resolvePersonFromLabel(project.closer_label, employees, { preferNonBd: true });
 }
 
 const ChartTooltip = ({ active, payload, label, prefix = "", suffix = "" }: any) => {
@@ -344,16 +398,18 @@ export default function ProjectsClient({
       const matchesStartFrom = !startDateFrom || projectStart >= new Date(startDateFrom);
       const matchesStartTo = !startDateTo || projectStart <= new Date(startDateTo);
 
-      // KPI filter
+      // KPI filter — Active / With MRR only count sheet Active (= In Progress)
       let matchesKpi = true;
       if (kpiFilter === "active") {
-        matchesKpi = (ACTIVE_STATUSES as readonly string[]).includes(p.status);
+        matchesKpi = (SHEET_ACTIVE_STATUSES as readonly string[]).includes(p.status);
       } else if (kpiFilter === "on_hold") {
         matchesKpi = (PAUSED_STATUSES as readonly string[]).includes(p.status);
       } else if (kpiFilter === "completed") {
         matchesKpi = (ENDED_STATUSES as readonly string[]).includes(p.status);
       } else if (kpiFilter === "retainers") {
-        matchesKpi = Number(p.expected_monthly_revenue || 0) > 0;
+        matchesKpi =
+          (SHEET_ACTIVE_STATUSES as readonly string[]).includes(p.status) &&
+          Number(p.expected_monthly_revenue || 0) > 0;
       }
 
       return (
@@ -461,24 +517,25 @@ export default function ProjectsClient({
   // ==========================================
   // --- METRIC CALCULATIONS FOR DASHBOARD ---
   // ==========================================
-
+  // Portfolio MRR uses the *current* active set (sheet Active = In Progress),
+  // not the time filter. Time filter is for acquisition / started-in-period views.
   const metrics = useMemo(() => {
-    const projects = filteredProjectsByTime;
-    const activeProjects = projects.filter((p) =>
-      (ACTIVE_STATUSES as readonly string[]).includes(p.status)
+    const portfolio = initialProjects;
+    const sheetActive = portfolio.filter((p) =>
+      (SHEET_ACTIVE_STATUSES as readonly string[]).includes(p.status)
     );
+    const periodProjects = filteredProjectsByTime;
 
     let paused = 0;
     let ended = 0;
-    let monthlyEstimatedRevenue = 0;
-    let activeWithMrr = 0;
-
-    projects.forEach((p) => {
+    periodProjects.forEach((p) => {
       if ((PAUSED_STATUSES as readonly string[]).includes(p.status)) paused += 1;
       if ((ENDED_STATUSES as readonly string[]).includes(p.status)) ended += 1;
     });
 
-    activeProjects.forEach((p) => {
+    let monthlyEstimatedRevenue = 0;
+    let activeWithMrr = 0;
+    sheetActive.forEach((p) => {
       const mrr = Number(p.expected_monthly_revenue || 0);
       if (mrr > 0) {
         monthlyEstimatedRevenue += mrr;
@@ -487,14 +544,14 @@ export default function ProjectsClient({
     });
 
     const activeResourceIds = new Set<string>();
-    activeProjects.forEach((p) => {
+    sheetActive.forEach((p) => {
       p.resources.forEach((r) => activeResourceIds.add(r.employee_id));
       if (p.closing_developer_id) activeResourceIds.add(p.closing_developer_id);
     });
 
     return {
-      total: projects.length,
-      active: activeProjects.length,
+      total: periodProjects.length,
+      active: sheetActive.length,
       paused,
       ended,
       monthlyEstimatedRevenue,
@@ -507,15 +564,15 @@ export default function ProjectsClient({
       monthlyRecurring: activeWithMrr,
       totalValue: monthlyEstimatedRevenue,
     };
-  }, [filteredProjectsByTime]);
+  }, [initialProjects, filteredProjectsByTime]);
 
-  /** Dashboard scope: active projects only */
+  /** Dashboard scope: sheet Active (= In Progress) for MRR table */
   const activeDashboardProjects = useMemo(
     () =>
-      filteredProjectsByTime.filter((p) =>
-        (ACTIVE_STATUSES as readonly string[]).includes(p.status)
+      initialProjects.filter((p) =>
+        (SHEET_ACTIVE_STATUSES as readonly string[]).includes(p.status)
       ),
-    [filteredProjectsByTime]
+    [initialProjects]
   );
 
   // 1. Project Status Chart Data
@@ -611,16 +668,6 @@ export default function ProjectsClient({
       }
     });
 
-    const findEmployeeByLabel = (label: string | null | undefined) => {
-      if (!label?.trim()) return null;
-      const needle = label.trim().toLowerCase();
-      return (
-        allEmployees.find((e) => e.full_name.toLowerCase() === needle) ||
-        allEmployees.find((e) => e.full_name.toLowerCase().includes(needle) || needle.includes(e.full_name.toLowerCase())) ||
-        null
-      );
-    };
-
     const running = activeDashboardProjects;
 
     running.forEach((p) => {
@@ -642,25 +689,19 @@ export default function ProjectsClient({
         return;
       }
 
-      // Sheet fallback: closer FK → resource label → BD label
+      // Sheet fallback: resource label only (closer is a different role — not workload)
       const assignees: { id: string; name: string; employee: Employee | null }[] = [];
-      if (p.closing_developer_id) {
-        const emp =
-          allEmployees.find((e) => e.id === p.closing_developer_id) ||
-          (p.closing_developer as Employee | undefined) ||
-          null;
-        assignees.push({
-          id: p.closing_developer_id,
-          name: emp?.full_name || p.assigned_resource_label || "Unknown",
-          employee: emp,
-        });
-      } else if (p.assigned_resource_label?.trim()) {
-        const matched = findEmployeeByLabel(p.assigned_resource_label);
-        assignees.push({
-          id: matched?.id || `label:${p.assigned_resource_label.trim().toLowerCase()}`,
-          name: matched?.full_name || p.assigned_resource_label.trim(),
-          employee: matched,
-        });
+      if (p.assigned_resource_label?.trim()) {
+        const matched = resolvePersonFromLabel(p.assigned_resource_label, allEmployees);
+        if (matched) {
+          assignees.push({
+            id: matched.id || `label:${matched.name.toLowerCase()}`,
+            name: matched.name,
+            employee: matched.id
+              ? allEmployees.find((e) => e.id === matched.id) || null
+              : null,
+          });
+        }
       }
 
       if (assignees.length === 0) return;
@@ -723,17 +764,11 @@ export default function ProjectsClient({
       const row = stats[key];
       row.closed += 1;
       row.active += 1;
-      row.revenue += Number(p.expected_monthly_revenue || p.value || 0);
+      row.revenue += Number(p.expected_monthly_revenue || 0);
     });
 
     return Object.values(stats).sort((a, b) => b.revenue - a.revenue || b.active - a.active);
   }, [activeDashboardProjects, allEmployees]);
-
-  const employeeNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    allEmployees.forEach((emp) => map.set(emp.id, emp.full_name));
-    return map;
-  }, [allEmployees]);
 
   const visibilityMetrics = useMemo(() => {
     const now = new Date();
@@ -802,21 +837,15 @@ export default function ProjectsClient({
       }
 
       if (completedStatuses.has(project.status)) {
-        const closer =
-          project.closer_label ||
-          (project.closing_developer_id
-            ? employeeNameById.get(project.closing_developer_id)
-            : null);
-        const fallbackOwner =
-          project.assigned_resource_label ||
-          project.assigned_bd_label ||
-          project.bd?.full_name ||
-          "Unknown";
-        const owner = closer || fallbackOwner;
-        const current = closedOwnerMap.get(owner) || { count: 0, value: 0 };
-        current.count += 1;
-        current.value += value;
-        closedOwnerMap.set(owner, current);
+        const closer = resolveCloser(project, allEmployees);
+        // Only credit real closers (devs). Never fall back to BD / resource labels.
+        if (closer) {
+          const owner = closer.name;
+          const current = closedOwnerMap.get(owner) || { count: 0, value: 0 };
+          current.count += 1;
+          current.value += value;
+          closedOwnerMap.set(owner, current);
+        }
 
         const closeDate =
           project.actual_delivery_date
@@ -860,7 +889,7 @@ export default function ProjectsClient({
       topCloser,
       closedByOwner,
     };
-  }, [filteredProjectsByTime, employeeNameById]);
+  }, [filteredProjectsByTime, allEmployees]);
 
   return (
     <div className="projects-module space-y-4 sm:space-y-5 md:space-y-6">
@@ -1102,7 +1131,7 @@ export default function ProjectsClient({
                     Active Projects · Monthly Estimated Revenue
                   </CardTitle>
                   <CardDescription className="text-xs text-muted-foreground mt-1">
-                    Sheet Active status only · sum of Expected Monthly Revenue (MRR)
+                    Current sheet Active (In Progress) · sum of Expected Monthly Revenue — not filtered by start month
                   </CardDescription>
                 </div>
                 <div className="rounded-full bg-primary/10 border border-primary/20 px-3 py-1 text-sm font-bold text-primary tabular-nums">
@@ -1136,7 +1165,7 @@ export default function ProjectsClient({
                           <div className="text-xs text-muted-foreground truncate max-w-[220px]">{p.name}</div>
                         </TableCell>
                         <TableCell className="py-3 px-4 text-sm">
-                          {p.closer_label || p.closing_developer?.full_name || "—"}
+                          {resolveCloser(p, allEmployees)?.name || "—"}
                         </TableCell>
                         <TableCell className="py-3 px-4 text-sm text-muted-foreground">
                           {p.assigned_resource_label || "—"}
@@ -1173,7 +1202,7 @@ export default function ProjectsClient({
                   Which Person Closed Which Project
                 </CardTitle>
                 <CardDescription className="text-xs text-muted-foreground mt-1">
-                  Completed project ownership from closer/resource/BD sheet labels
+                  Closed projects credited to the Closer column (developers only)
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
@@ -1391,7 +1420,7 @@ export default function ProjectsClient({
                   <div>
                     <CardTitle className="text-sm font-bold tracking-tight text-foreground">Resource Allocation</CardTitle>
                     <CardDescription className="text-xs text-muted-foreground mt-1">
-                      Running projects per person (sheet resource / closer when assignments are missing)
+                      Running projects per person (from assignments / Assigned Resource)
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2 rounded-full bg-primary/10 border border-primary/20 px-3 py-1">
@@ -1852,9 +1881,9 @@ export default function ProjectsClient({
                           </TableCell>
                           <TableCell
                             className="py-2.5 px-3 max-w-0 truncate text-xs text-muted-foreground"
-                            title={p.closer_label || p.closing_developer?.full_name || undefined}
+                            title={resolveCloser(p, allEmployees)?.name || undefined}
                           >
-                            {p.closer_label || p.closing_developer?.full_name?.split(" ")[0] || "—"}
+                            {resolveCloser(p, allEmployees)?.name.split(" ")[0] || "—"}
                           </TableCell>
                           <TableCell
                             className="py-2.5 px-3 max-w-0 truncate text-xs text-muted-foreground"

@@ -15,7 +15,7 @@ import {
   Area,
 } from "recharts";
 import { TrendingUp, Target, Award, Activity, Star } from "lucide-react";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
 
 interface PerformanceChartsProps {

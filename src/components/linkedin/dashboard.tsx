@@ -16,6 +16,7 @@ export function LinkedInDashboard({ analytics, employeeId }: any) {
       { id: "abdullah-s", name: "Abdullah S.", isPartialData: false },
     ],
     selectedProfileId: "abdullah-s",
+    compareProfileId: null,
     granularity: "quarterly" as const,
     kpis: {
       invitesSent: 4010,
@@ -26,6 +27,7 @@ export function LinkedInDashboard({ analytics, employeeId }: any) {
       repliesReceived: 1015,
       replyRate: 12.7,
     },
+    compareKpis: null,
     chartData: [
       {
         period: "'26Q1",
@@ -61,6 +63,8 @@ export function LinkedInDashboard({ analytics, employeeId }: any) {
         replyRate: 6.8,
       },
     ],
+    compareChartData: [],
+    isAdmin: true,
   };
 
   return <OutreachControlRoom initialData={initialData} employeeId={employeeId} />;

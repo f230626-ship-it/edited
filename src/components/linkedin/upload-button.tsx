@@ -4,12 +4,17 @@ import { useState } from "react";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LinkedInUploadDialog } from "./upload-dialog";
+import type { OutreachProfile } from "@/actions/linkedin-outreach";
 
 interface LinkedInUploadButtonProps {
-  employeeId: string;
+  profiles: OutreachProfile[];
+  defaultProfileId?: string;
 }
 
-export function LinkedInUploadButton({ employeeId }: LinkedInUploadButtonProps) {
+export function LinkedInUploadButton({
+  profiles,
+  defaultProfileId,
+}: LinkedInUploadButtonProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -23,7 +28,8 @@ export function LinkedInUploadButton({ employeeId }: LinkedInUploadButtonProps) 
       <LinkedInUploadDialog
         open={open}
         onOpenChange={setOpen}
-        employeeId={employeeId}
+        profiles={profiles}
+        defaultProfileId={defaultProfileId}
       />
     </>
   );

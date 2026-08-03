@@ -2,39 +2,182 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAuth } from "@/lib/auth";
+import { getCurrentEmployee, requireAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
-export async function createProject(formData: FormData) {
-  const supabase = await createClient();
-  await requireAuth();
+const PROJECT_WRITE_COLUMNS = [
+  "name",
+  "client_name",
+  "company_name",
+  "client_email",
+  "client_contact_number",
+  "description",
+  "industry",
+  "bd_id",
+  "lead_source",
+  "closing_developer_id",
+  "manager_id",
+  "value",
+  "currency",
+  "is_monthly_retainer",
+  "retainer_amount",
+  "expected_profit",
+  "payment_status",
+  "start_date",
+  "expected_delivery_date",
+  "actual_delivery_date",
+  "status",
+  "priority",
+  "progress_percentage",
+  "project_type",
+  "payment_structure",
+  "project_rate",
+  "expected_monthly_revenue",
+  "profile_name",
+  "business_model",
+  "assigned_bd_label",
+  "assigned_resource_label",
+  "closer_label",
+] as const;
 
-  const rawData = Object.fromEntries(formData.entries());
-  
-  // Clean up empty strings to null
+const INDUSTRY_VALUES = new Set([
+  "Real Estate",
+  "Healthcare",
+  "Restaurant",
+  "Hotel",
+  "E-commerce",
+  "Other",
+]);
+const LEAD_SOURCE_VALUES = new Set([
+  "Fiverr",
+  "Upwork",
+  "LinkedIn",
+  "Website",
+  "Referral",
+  "Cold Email",
+  "Other",
+]);
+const PAYMENT_STATUS_VALUES = new Set(["Pending", "Partial", "Paid", "Overdue"]);
+const STATUS_VALUES = new Set([
+  "Lead Won",
+  "Onboarding",
+  "In Progress",
+  "On Hold",
+  "Completed",
+  "Maintenance",
+  "Paused",
+  "Cancelled",
+  "Archived",
+]);
+const PRIORITY_VALUES = new Set(["Low", "Medium", "High"]);
+
+function canWriteProjects(employee: {
+  role: string;
+  pm_role: string | null;
+}): boolean {
+  return (
+    employee.role === "admin" ||
+    employee.pm_role === "admin" ||
+    employee.pm_role === "coordinator"
+  );
+}
+
+function buildProjectPayload(formData: FormData): Record<string, unknown> {
+  const raw = Object.fromEntries(formData.entries());
   const payload: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(rawData)) {
-    if (value === "") {
+
+  for (const key of PROJECT_WRITE_COLUMNS) {
+    if (!(key in raw)) continue;
+    const value = raw[key];
+    if (value === "" || value === undefined) {
       payload[key] = null;
     } else {
       payload[key] = value;
     }
   }
 
-  // Handle specific types
-  if (payload.progress_percentage) {
-    payload.progress_percentage = Number(payload.progress_percentage);
+  // Always allow clearing optional FKs when keys are present (including empty)
+  if (formData.has("bd_id")) {
+    const v = formData.get("bd_id");
+    payload.bd_id = v && String(v).trim() ? String(v) : null;
   }
-  if (payload.value) {
-    payload.value = Number(payload.value);
+  if (formData.has("closing_developer_id")) {
+    const v = formData.get("closing_developer_id");
+    payload.closing_developer_id = v && String(v).trim() ? String(v) : null;
   }
-  if (payload.expected_monthly_revenue) {
-    payload.expected_monthly_revenue = Number(payload.expected_monthly_revenue);
-  }
-  if (payload.is_monthly_retainer) {
-    payload.is_monthly_retainer = payload.is_monthly_retainer === "true";
+  if (formData.has("manager_id")) {
+    const v = formData.get("manager_id");
+    payload.manager_id = v && String(v).trim() ? String(v) : null;
   }
 
+  if (payload.progress_percentage != null) {
+    payload.progress_percentage = Number(payload.progress_percentage) || 0;
+  }
+  if (payload.value != null) {
+    payload.value = Number(payload.value) || 0;
+  }
+  if (payload.expected_monthly_revenue != null) {
+    payload.expected_monthly_revenue = Number(payload.expected_monthly_revenue) || null;
+  }
+  if (payload.retainer_amount != null) {
+    payload.retainer_amount = Number(payload.retainer_amount) || null;
+  }
+  if (payload.expected_profit != null) {
+    payload.expected_profit = Number(payload.expected_profit) || null;
+  }
+  if (payload.is_monthly_retainer != null) {
+    payload.is_monthly_retainer =
+      payload.is_monthly_retainer === true || payload.is_monthly_retainer === "true";
+  }
+
+  // Normalize CHECK-constrained enums so sheet free-text doesn't blow up updates
+  if (payload.industry != null && !INDUSTRY_VALUES.has(String(payload.industry))) {
+    payload.industry = "Other";
+  }
+  if (payload.lead_source != null && !LEAD_SOURCE_VALUES.has(String(payload.lead_source))) {
+    payload.lead_source = "Other";
+  }
+  if (
+    payload.payment_status != null &&
+    !PAYMENT_STATUS_VALUES.has(String(payload.payment_status))
+  ) {
+    payload.payment_status = "Pending";
+  }
+  if (payload.status != null && !STATUS_VALUES.has(String(payload.status))) {
+    payload.status = "Lead Won";
+  }
+  if (payload.priority != null && !PRIORITY_VALUES.has(String(payload.priority))) {
+    payload.priority = "Medium";
+  }
+
+  return payload;
+}
+
+export async function createProject(formData: FormData) {
+  const employee = await getCurrentEmployee();
+  if (!employee) return { error: "Not authenticated" };
+  if (!canWriteProjects(employee)) {
+    return { error: "Only admins or project coordinators can create projects" };
+  }
+
+  const payload = buildProjectPayload(formData);
+  if (!payload.name) return { error: "Project name is required" };
+  if (payload.value == null) payload.value = 0;
+  if (!payload.industry) payload.industry = "Other";
+  if (!payload.lead_source) payload.lead_source = "Other";
+  if (!payload.payment_status) payload.payment_status = "Pending";
+  if (!payload.status) payload.status = "Lead Won";
+  if (!payload.currency) payload.currency = "USD";
+  if (payload.is_monthly_retainer == null) payload.is_monthly_retainer = false;
+  if (!payload.start_date) {
+    payload.start_date = new Date().toISOString().slice(0, 10);
+  }
+  if (!payload.expected_delivery_date) {
+    payload.expected_delivery_date = payload.start_date;
+  }
+
+  // Admin client: portal admins may have role=admin but pm_role=developer (RLS would block)
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("projects")
     .insert(payload)
@@ -51,35 +194,18 @@ export async function createProject(formData: FormData) {
 }
 
 export async function updateProject(id: string, formData: FormData) {
-  const supabase = await createClient();
-  await requireAuth();
-
-  const rawData = Object.fromEntries(formData.entries());
-  
-  // Clean up empty strings to null
-  const payload: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(rawData)) {
-    if (value === "") {
-      payload[key] = null;
-    } else {
-      payload[key] = value;
-    }
+  const employee = await getCurrentEmployee();
+  if (!employee) return { error: "Not authenticated" };
+  if (!canWriteProjects(employee)) {
+    return { error: "Only admins or project coordinators can edit projects" };
   }
 
-  // Handle specific types
-  if (payload.progress_percentage) {
-    payload.progress_percentage = Number(payload.progress_percentage);
-  }
-  if (payload.value) {
-    payload.value = Number(payload.value);
-  }
-  if (payload.expected_monthly_revenue) {
-    payload.expected_monthly_revenue = Number(payload.expected_monthly_revenue);
-  }
-  if (payload.is_monthly_retainer) {
-    payload.is_monthly_retainer = payload.is_monthly_retainer === "true";
+  const payload = buildProjectPayload(formData);
+  if (Object.keys(payload).length === 0) {
+    return { error: "No project fields to update" };
   }
 
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("projects")
     .update(payload)

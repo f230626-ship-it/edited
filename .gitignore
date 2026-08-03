@@ -56,3 +56,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*
+
+# Local LinkedIn export fixtures (large binaries)
+fixtures/linkedin-exports/**/*.zip
+Basic_LinkedInDataExport*.zip
+Complete_LinkedInDataExport*.zip
+

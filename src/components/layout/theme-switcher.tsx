@@ -1,6 +1,6 @@
 "use client";
 
-import { useTheme } from "next-themes";
+import { useTheme } from "@/components/theme-provider";
 import { useEffect, useState } from "react";
 import { Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,16 +9,13 @@ export function ThemeSwitcher() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
-  // Avoid hydration mismatch by rendering only after mounting on the client
   useEffect(() => {
-    const timer = setTimeout(() => setMounted(true), 0);
-    return () => clearTimeout(timer);
+    setMounted(true);
   }, []);
 
+  // Same footprint on server + first client paint — avoid Button tabIndex mismatch
   if (!mounted) {
-    return (
-      <Button variant="ghost" size="icon" className="h-9 w-9 rounded-md opacity-0 min-h-[44px] min-w-[44px]" />
-    );
+    return <span className="inline-flex h-9 w-9 shrink-0" aria-hidden />;
   }
 
   const currentTheme = theme === "system" ? resolvedTheme : theme;

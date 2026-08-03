@@ -54,7 +54,35 @@ export function ProjectForm({ employees, currentEmployee, project }: ProjectForm
   const [paymentStructure, setPaymentStructure] = useState(project?.payment_structure || "");
 
   const isEditing = !!project;
-  const isAdmin = currentEmployee.pm_role === "admin";
+  // Portal admin OR PM admin can edit (pm_role may still be developer for portal admins)
+  const isAdmin =
+    currentEmployee.role === "admin" || currentEmployee.pm_role === "admin";
+
+  const PROJECT_TYPE_OPTIONS = [
+    "Full Time",
+    "Part Time",
+    "One-time",
+    "Contract",
+    "Internship",
+    "Fixed Price",
+  ];
+  const PAYMENT_STRUCTURE_OPTIONS = [
+    "Milestones",
+    "Milestone Based",
+    "Monthly",
+    "Weekly",
+    "Bi-weekly",
+    "Bi-Weekly",
+    "Upfront",
+  ];
+  // Preserve sheet free-text values that aren't in the fixed lists
+  const projectTypeOptions = projectType && !PROJECT_TYPE_OPTIONS.includes(projectType)
+    ? [projectType, ...PROJECT_TYPE_OPTIONS]
+    : PROJECT_TYPE_OPTIONS;
+  const paymentStructureOptions =
+    paymentStructure && !PAYMENT_STRUCTURE_OPTIONS.includes(paymentStructure)
+      ? [paymentStructure, ...PAYMENT_STRUCTURE_OPTIONS]
+      : PAYMENT_STRUCTURE_OPTIONS;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -68,11 +96,11 @@ export function ProjectForm({ employees, currentEmployee, project }: ProjectForm
     formData.set("priority", priority || "Medium");
     formData.set("is_monthly_retainer", String(isMonthlyRetainer));
     formData.set("currency", currency);
-    formData.set("project_type", projectType);
-    formData.set("payment_structure", paymentStructure);
-    
-    if (bdId) formData.set("bd_id", bdId);
-    if (closingDevId) formData.set("closing_developer_id", closingDevId);
+    formData.set("project_type", projectType || "");
+    formData.set("payment_structure", paymentStructure || "");
+    // Always send FKs so clearing is possible
+    formData.set("bd_id", bdId || "");
+    formData.set("closing_developer_id", closingDevId || "");
 
     try {
       let result;
@@ -191,16 +219,19 @@ export function ProjectForm({ employees, currentEmployee, project }: ProjectForm
 
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-muted-foreground">Project Type</Label>
-              <Select value={projectType} onValueChange={(val) => setProjectType(val ?? "")}>
+              <Select
+                value={projectType || null}
+                onValueChange={(val) => setProjectType(val ?? "")}
+              >
                 <SelectTrigger className="pm-select-trigger">
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Full Time">Full Time</SelectItem>
-                  <SelectItem value="Part Time">Part Time</SelectItem>
-                  <SelectItem value="One-time">One-time</SelectItem>
-                  <SelectItem value="Contract">Contract</SelectItem>
-                  <SelectItem value="Internship">Internship</SelectItem>
+                  {projectTypeOptions.map((opt) => (
+                    <SelectItem key={opt} value={opt}>
+                      {opt}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -236,10 +267,10 @@ export function ProjectForm({ employees, currentEmployee, project }: ProjectForm
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-muted-foreground">BD Representative</Label>
                   <Select
-                    value={bdId}
+                    value={bdId || null}
                     onValueChange={(val) => setBdId(val || "")}
                     items={employees
-                      .filter((e) => e.pm_role === "bd" || e.pm_role === "admin")
+                      .filter((e) => e.pm_role === "bd" || e.pm_role === "admin" || e.role === "admin")
                       .map((emp) => ({ value: emp.id, label: emp.full_name }))}
                   >
                     <SelectTrigger className="pm-select-trigger">
@@ -247,7 +278,7 @@ export function ProjectForm({ employees, currentEmployee, project }: ProjectForm
                     </SelectTrigger>
                     <SelectContent>
                       {employees
-                        .filter((e) => e.pm_role === "bd" || e.pm_role === "admin")
+                        .filter((e) => e.pm_role === "bd" || e.pm_role === "admin" || e.role === "admin")
                         .map((emp) => (
                           <SelectItem key={emp.id} value={emp.id}>
                             {emp.full_name}
@@ -280,7 +311,7 @@ export function ProjectForm({ employees, currentEmployee, project }: ProjectForm
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-muted-foreground">Front Face</Label>
                   <Select
-                    value={closingDevId}
+                    value={closingDevId || null}
                     onValueChange={(val) => setClosingDevId(val || "")}
                     items={employees.map((emp) => ({ value: emp.id, label: emp.full_name }))}
                   >
@@ -319,9 +350,9 @@ export function ProjectForm({ employees, currentEmployee, project }: ProjectForm
                     <SelectContent>
                       <SelectItem value="Lead Won">Lead Won</SelectItem>
                       <SelectItem value="Onboarding">Onboarding</SelectItem>
-                      <SelectItem value="In Progress">In Progress</SelectItem>
+                      <SelectItem value="In Progress">Active (In Progress)</SelectItem>
                       <SelectItem value="On Hold">On Hold</SelectItem>
-                      <SelectItem value="Completed">Completed</SelectItem>
+                      <SelectItem value="Completed">Ended (Completed)</SelectItem>
                       <SelectItem value="Maintenance">Maintenance</SelectItem>
                       <SelectItem value="Paused">Paused</SelectItem>
                       <SelectItem value="Cancelled">Cancelled</SelectItem>
@@ -421,15 +452,19 @@ export function ProjectForm({ employees, currentEmployee, project }: ProjectForm
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-muted-foreground">Payment Structure</Label>
-                  <Select value={paymentStructure} onValueChange={(val) => setPaymentStructure(val ?? "")}>
+                  <Select
+                    value={paymentStructure || null}
+                    onValueChange={(val) => setPaymentStructure(val ?? "")}
+                  >
                     <SelectTrigger className="pm-select-trigger">
                       <SelectValue placeholder="Select structure" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Milestones">Milestones</SelectItem>
-                      <SelectItem value="Monthly">Monthly</SelectItem>
-                      <SelectItem value="Weekly">Weekly</SelectItem>
-                      <SelectItem value="Upfront">Upfront</SelectItem>
+                      {paymentStructureOptions.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                          {opt}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

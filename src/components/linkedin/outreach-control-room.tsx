@@ -15,9 +15,9 @@ import {
 import {
   OutreachDashboardData,
   OutreachProfile,
-  PeriodMetric,
   getLinkedInOutreachData,
 } from "@/actions/linkedin-outreach";
+import type { PeriodMetric } from "@/lib/linkedin/outreach-metrics";
 import { LinkedInUploadButton } from "./upload-button";
 
 interface OutreachControlRoomProps {
@@ -82,7 +82,12 @@ export function OutreachControlRoom({
         </div>
 
         <div className="flex items-center gap-4 self-start md:self-auto">
-          {employeeId && <LinkedInUploadButton employeeId={employeeId} />}
+          {employeeId && (
+            <LinkedInUploadButton
+              profiles={data.profiles}
+              defaultProfileId={selectedProfileId}
+            />
+          )}
           <div className="text-left md:text-right">
             <span className="text-xs text-muted-foreground block font-medium">
               Reporting window
@@ -119,11 +124,6 @@ export function OutreachControlRoom({
                   }`}
                 />
                 <span>{profile.name}</span>
-                {profile.isPartialData && (
-                  <span className="bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20 text-[10px] px-1.5 py-0.2 rounded-full font-normal">
-                    partial data
-                  </span>
-                )}
               </button>
             );
           })}

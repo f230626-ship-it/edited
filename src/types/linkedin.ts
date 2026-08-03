@@ -7,6 +7,7 @@ export type LinkedInImportStatus = 'pending' | 'processing' | 'completed' | 'fai
 export interface LinkedInImport {
   id: string;
   employee_id: string;
+  sales_profile_id?: string | null;
   uploaded_by: string;
   filename: string;
   file_size: number;
@@ -15,6 +16,8 @@ export interface LinkedInImport {
   datasets_detected: string[];
   parsing_progress: Record<string, number>;
   summary: LinkedInSummary;
+  is_partial?: boolean;
+  owner_display_name?: string | null;
   created_at: string;
   completed_at?: string;
 }
@@ -28,6 +31,7 @@ export interface LinkedInSummary {
   total_education?: number;
   total_invitations?: number;
   total_connections?: number;
+  total_messages?: number;
   total_companies_followed?: number;
   total_learning_courses?: number;
   total_events?: number;
@@ -147,6 +151,19 @@ export interface LinkedInInvitation {
   created_at: string;
 }
 
+export interface LinkedInConnection {
+  id: string;
+  import_id: string;
+  employee_id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  email_address?: string | null;
+  company?: string | null;
+  position?: string | null;
+  connected_on?: string | null;
+  created_at: string;
+}
+
 export interface LinkedInCompanyFollow {
   id: string;
   import_id: string;
@@ -222,6 +239,7 @@ export type LinkedInDatasetType =
   | 'certifications'
   | 'invitations'
   | 'connections'
+  | 'messages'
   | 'company_follows'
   | 'learning'
   | 'events'

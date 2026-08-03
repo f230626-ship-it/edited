@@ -91,7 +91,10 @@ function buildReportingWindow(
 ) {
   return computeReportingWindow(
     [],
-    invitations.map((i) => ({ invitation_date: i.invitation_date ?? null })),
+    invitations.map((i) => ({
+      direction: i.direction,
+      invitation_date: i.invitation_date ?? null,
+    })),
     connections.map((c) => ({ connected_on: c.connected_on ?? null }))
   );
 }
@@ -249,10 +252,10 @@ export function ProfileIntelligenceDashboard({
     [invitations, connections]
   );
 
-  const invitesAxis    = useMemo(() => computeCountAxis(maxOfKeys(chartData, ["invitesSent", "connectionsMade"])), [chartData]);
-  const messagesAxis   = useMemo(() => computeCountAxis(maxStackTotal(chartData, ["initialMessages", "followUpsSent"])), [chartData]);
-  const repliesAxis    = useMemo(() => computeCountAxis(maxOfKeys(chartData, ["repliesReceived"])), [chartData]);
-  const acceptanceAxis = useMemo(() => computePercentAxis(maxOfKeys(chartData, ["acceptanceRate"])), [chartData]);
+  const invitesAxis    = useMemo(() => computeCountAxis(maxOfKeys(chartData as unknown as Record<string, unknown>[], ["invitesSent", "connectionsMade"])), [chartData]);
+  const messagesAxis   = useMemo(() => computeCountAxis(maxStackTotal(chartData as unknown as Record<string, unknown>[], ["initialMessages", "followUpsSent"])), [chartData]);
+  const repliesAxis    = useMemo(() => computeCountAxis(maxOfKeys(chartData as unknown as Record<string, unknown>[], ["repliesReceived"])), [chartData]);
+  const acceptanceAxis = useMemo(() => computePercentAxis(maxOfKeys(chartData as unknown as Record<string, unknown>[], ["acceptanceRate"])), [chartData]);
 
   const handleGranularityChange = (next: GranularityOption) => {
     startTransition(() => setGranularity(next));
@@ -304,11 +307,6 @@ export function ProfileIntelligenceDashboard({
         <div className="flex h-10 items-center gap-2 rounded-full border border-amber-500/50 bg-amber-500/10 px-4 text-sm font-semibold text-amber-900 dark:text-white ring-1 ring-amber-500/20">
           <span className="inline-block h-2 w-2 rounded-full bg-amber-500 shrink-0" />
           {profileName}
-          {invitations.length === 0 && connections.length === 0 && (
-            <span className="rounded-full border border-red-300 bg-red-50 px-1.5 py-px text-[10px] font-medium text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400">
-              partial data
-            </span>
-          )}
         </div>
       </div>
 
@@ -361,7 +359,7 @@ export function ProfileIntelligenceDashboard({
               className="mt-3 text-[1.6rem] font-extrabold tabular-nums leading-none"
               style={{ color: kpi.color }}
             >
-              {kpiDisplay(kpi.key, kpi.suffix)}
+              {kpiDisplay(kpi.key, kpi.suffix === false ? false : String(kpi.suffix))}
             </span>
             <span className="mt-2 text-[11px] text-muted-foreground dark:text-slate-500">
               over selected window

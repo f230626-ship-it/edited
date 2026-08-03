@@ -16,14 +16,22 @@ function resolveProjectsTabName(raw?: string | null) {
   return tab;
 }
 
-/** Match "Fatima", "Asim Ali", or "Irfan 50% share" to employees. */
+/** Match sheet person labels to employees. Prefer `preferRoles` when set (e.g. closers = non-BD). */
 function findEmployeeId(
-  employees: { id: string; full_name: string }[],
-  name: string | null | undefined
+  employees: { id: string; full_name: string; pm_role?: string | null }[],
+  name: string | null | undefined,
+  options?: { preferNonBd?: boolean }
 ): string | null {
   if (!name?.trim()) return null;
   const junk = /^(none|n\/a|na|null|tbd|-|reference|upsell|unassigned|unknown)$/i;
   if (junk.test(name.trim())) return null;
+  // Never treat outsource notes as a person match for closers
+  if (/\boutsource\b/i.test(name) && options?.preferNonBd) return null;
+
+  const aliases: Record<string, string[]> = {
+    moin: ["moin", "moeen"],
+    moeen: ["moeen", "moin"],
+  };
 
   const raw = name.toLowerCase().trim();
   const cleaned = raw
@@ -34,26 +42,42 @@ function findEmployeeId(
     .replace(/\s+/g, " ")
     .trim();
 
-  const candidates = [raw, cleaned].filter(Boolean);
+  const tokens = new Set<string>([raw, cleaned].filter(Boolean));
+  for (const t of [...tokens]) {
+    for (const a of aliases[t] || []) tokens.add(a);
+  }
 
-  for (const candidate of candidates) {
-    const exact = employees.find((e) => e.full_name.toLowerCase().trim() === candidate);
+  const ranked = [...employees].sort((a, b) => {
+    if (!options?.preferNonBd) return 0;
+    const score = (e: { pm_role?: string | null }) =>
+      e.pm_role === "bd" ? 2 : e.pm_role === "developer" || e.pm_role === "admin" ? 0 : 1;
+    return score(a) - score(b);
+  });
+
+  for (const candidate of tokens) {
+    const exact = ranked.find((e) => e.full_name.toLowerCase().trim() === candidate);
     if (exact) return exact.id;
 
-    const firstName = employees.find(
+    const firstName = ranked.find(
       (e) => e.full_name.toLowerCase().split(/\s+/)[0] === candidate
     );
     if (firstName) return firstName.id;
   }
 
   // Longest name-part wins (avoid matching tiny tokens)
-  let best: { id: string; len: number } | null = null;
-  for (const e of employees) {
+  let best: { id: string; len: number; rank: number } | null = null;
+  for (const e of ranked) {
+    const rank =
+      options?.preferNonBd && e.pm_role === "bd"
+        ? 2
+        : options?.preferNonBd && (e.pm_role === "developer" || e.pm_role === "admin")
+          ? 0
+          : 1;
     for (const part of e.full_name.toLowerCase().split(/\s+/)) {
       if (part.length < 3) continue;
       const re = new RegExp(`\\b${part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-      if (re.test(cleaned || raw) && (!best || part.length > best.len)) {
-        best = { id: e.id, len: part.length };
+      if (re.test(cleaned || raw) && (!best || part.length > best.len || (part.length === best.len && rank < best.rank))) {
+        best = { id: e.id, len: part.length, rank };
       }
     }
   }
@@ -61,8 +85,9 @@ function findEmployeeId(
 }
 
 function collectEmployeeIdsFromLabels(
-  employees: { id: string; full_name: string }[],
-  labels: (string | null | undefined)[]
+  employees: { id: string; full_name: string; pm_role?: string | null }[],
+  labels: (string | null | undefined)[],
+  options?: { preferNonBd?: boolean }
 ): string[] {
   const ids = new Set<string>();
   for (const label of labels) {
@@ -73,11 +98,11 @@ function collectEmployeeIdsFromLabels(
       .map((c) => c.replace(/[()]/g, " ").trim())
       .filter(Boolean);
     for (const chunk of chunks.length ? chunks : [label]) {
-      const id = findEmployeeId(employees, chunk);
+      const id = findEmployeeId(employees, chunk, options);
       if (id) ids.add(id);
     }
     // Also try the whole string once (e.g. "Fatima Amer")
-    const whole = findEmployeeId(employees, label);
+    const whole = findEmployeeId(employees, label, options);
     if (whole) ids.add(whole);
   }
   return Array.from(ids);
@@ -119,19 +144,13 @@ async function syncProjectResources(
 async function upsertProjectFromSheetRow(
   admin: ReturnType<typeof createAdminClient>,
   row: ProjectSheetRow,
-  employees: { id: string; full_name: string }[],
+  employees: { id: string; full_name: string; pm_role?: string | null }[],
   actorId: string | null
 ) {
-  const resourceIds = collectEmployeeIdsFromLabels(employees, [
-    row.dev_name,
-    row.team_members_raw,
-  ]);
   const bdIds = collectEmployeeIdsFromLabels(employees, [row.bd_name]);
-  const closerIds = collectEmployeeIdsFromLabels(employees, [
-    row.closer_name,
-    // Legacy sheets: closer lived in Assigned Resource
-    row.closer_name ? null : row.dev_name,
-  ]);
+  // Closer = closing developer only (Abdullah / Fatima / Moeen). Never fall back to
+  // Assigned Resource or BD — those columns are a different role.
+  const closerId = findEmployeeId(employees, row.closer_name, { preferNonBd: true });
 
   const payload = {
     name: row.name,
@@ -164,10 +183,7 @@ async function upsertProjectFromSheetRow(
     expected_profit: row.expected_profit,
     manager_id: findEmployeeId(employees, row.manager_name),
     bd_id: bdIds[0] ?? findEmployeeId(employees, row.bd_name),
-    closing_developer_id:
-      closerIds[0] ??
-      findEmployeeId(employees, row.closer_name) ??
-      (row.closer_name ? null : resourceIds[0] ?? findEmployeeId(employees, row.dev_name)),
+    closing_developer_id: closerId,
     source: "sheet_sync" as const,
     external_row_hash: row.external_row_hash,
     updated_at: new Date().toISOString(),
@@ -283,7 +299,7 @@ export async function syncProjectsFromSheet(options?: {
     const rows = await fetchProjectsFromSheet(spreadsheetId, tabName);
     const { data: employees } = await admin
       .from("employees")
-      .select("id, full_name")
+      .select("id, full_name, pm_role")
       .eq("status", "active");
 
     let inserted = 0;
@@ -381,8 +397,8 @@ export async function runProjectsSheetCronSync() {
   const rows = await fetchProjectsFromSheet(spreadsheetId, tabName);
   const { data: employees } = await admin
     .from("employees")
-    .select("id, full_name")
-    .eq("status", "active");
+      .select("id, full_name, pm_role")
+      .eq("status", "active");
 
   let inserted = 0;
   let updated = 0;

@@ -13,6 +13,10 @@
     {
       "path": "/api/cron/projects-sheet",
       "schedule": "0 4 1,15 * *"
+    },
+    {
+      "path": "/api/cron/linkedin-export-reminder",
+      "schedule": "0 9 * * 1-5"
     }
   ]
 }

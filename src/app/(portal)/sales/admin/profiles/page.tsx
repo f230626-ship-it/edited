@@ -20,10 +20,23 @@ export default async function AdminProfilesPage() {
   await requireSalesOwner();
   const supabase = createAdminClient();
 
+  // Avoid ambiguous embed: sales_profiles has employee_id + created_by FKs to employees
   const { data: profiles } = await supabase
     .from("sales_profiles")
-    .select("*, employee:employees(full_name, email)")
+    .select("*")
     .order("name");
+
+  const handlerIds = Array.from(
+    new Set((profiles || []).map((p) => p.employee_id).filter(Boolean))
+  ) as string[];
+  const handlerNames = new Map<string, string>();
+  if (handlerIds.length > 0) {
+    const { data: handlers } = await supabase
+      .from("employees")
+      .select("id, full_name")
+      .in("id", handlerIds);
+    for (const h of handlers || []) handlerNames.set(h.id, h.full_name);
+  }
 
   return (
     <div className="space-y-6">
@@ -68,7 +81,13 @@ export default async function AdminProfilesPage() {
                   {profiles.map((p) => (
                     <TableRow key={p.id} className="border-b border-border/30">
                       <TableCell className="py-2.5 px-3 font-medium truncate">{p.name}</TableCell>
-                      <TableCell className="py-2.5 px-3 text-sm truncate">{(p.employee as { full_name: string })?.full_name ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                      <TableCell className="py-2.5 px-3 text-sm truncate">
+                        {p.employee_id && handlerNames.get(p.employee_id) ? (
+                          handlerNames.get(p.employee_id)
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="py-2.5 px-3 capitalize text-sm">{p.platform}</TableCell>
                       <TableCell className="py-2.5 px-3 truncate font-mono text-xs text-muted-foreground">
                         {p.google_sheet_id ?? <span className="text-muted-foreground">—</span>}

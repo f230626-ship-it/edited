@@ -66,7 +66,7 @@ function EmptyState({ employeeId }: { employeeId: string }) {
             endorsements, learning history, and AI recommendations.
           </p>
         </div>
-        <LinkedInUploadButton employeeId={employeeId} />
+        <LinkedInUploadButton profiles={[]} />
       </div>
     </div>
   );
@@ -132,7 +132,7 @@ export function IntelligenceDashboard({ employeeId, data }: IntelligenceDashboar
           </p>
         </div>
         <div className="flex items-start gap-4 shrink-0 self-start md:pt-1">
-          <LinkedInUploadButton employeeId={employeeId} />
+          <LinkedInUploadButton profiles={[]} />
           <div className="rounded-2xl border border-white/[0.06] bg-gradient-to-br from-white/[0.04] to-white/[0.01] px-5 py-3 space-y-1">
             <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-400 font-medium">
               <FileText className="h-3.5 w-3.5" />
