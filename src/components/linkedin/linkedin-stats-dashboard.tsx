@@ -480,7 +480,6 @@ export function LinkedInStatsDashboard({
           if (!open) refresh(selectedId, granularity, compareMode ? compareId : null, monthKey);
         }}
         profiles={data.profiles}
-        defaultProfileId={selectedId}
       />
     </div>
   );

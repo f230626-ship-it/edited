@@ -43,9 +43,13 @@ export function matchSalesProfileId(
     if (isAbbreviatedNameMatch(owner, p.name)) return p.id;
   }
 
+  // Containment only when first names match (avoids accidental cross-matches)
   for (const p of profiles) {
     const pn = normalizeProfileLabel(p.name);
     if (!pn) continue;
+    const ownerFirst = owner.split(" ")[0];
+    const profileFirst = pn.split(" ")[0];
+    if (!ownerFirst || ownerFirst !== profileFirst) continue;
     if (owner.includes(pn) || pn.includes(owner)) return p.id;
   }
 
@@ -55,7 +59,10 @@ export function matchSalesProfileId(
     // Require full tokens (avoid "abdul" substring-matching inside "abdullah")
     const tokens = pn.split(" ").filter((t) => t.length > 1);
     const hits = tokens.filter((t) => ownerTokens.includes(t));
-    if (hits.length >= Math.min(2, tokens.length)) return p.id;
+    if (hits.length >= Math.min(2, tokens.length) && hits.length >= 1) {
+      // Prefer 2-token hits; allow single shared token only if it's not a common first name alone
+      if (hits.length >= 2) return p.id;
+    }
   }
 
   return null;

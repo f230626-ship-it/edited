@@ -85,7 +85,6 @@ export function OutreachControlRoom({
           {employeeId && (
             <LinkedInUploadButton
               profiles={data.profiles}
-              defaultProfileId={selectedProfileId}
             />
           )}
           <div className="text-left md:text-right">

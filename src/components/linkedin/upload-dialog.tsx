@@ -28,7 +28,6 @@ interface LinkedInUploadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   profiles: OutreachProfile[];
-  defaultProfileId?: string;
 }
 
 type UploadStage = "idle" | "uploading" | "completed" | "error";
@@ -80,7 +79,6 @@ export function LinkedInUploadDialog({
   open,
   onOpenChange,
   profiles: initialProfiles,
-  defaultProfileId,
 }: LinkedInUploadDialogProps) {
   const router = useRouter();
   const [profiles, setProfiles] = useState<OutreachProfile[]>(initialProfiles);
@@ -92,35 +90,40 @@ export function LinkedInUploadDialog({
   const [isDragging, setIsDragging] = useState(false);
   const [loadingProfiles, setLoadingProfiles] = useState(false);
 
-  // Always refresh profiles when dialog opens so the dropdown is populated
+  // Always refresh full profile list when dialog opens
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
     setLoadingProfiles(true);
     listLinkedInUploadProfiles()
       .then((list) => {
+        if (cancelled) return;
         if (list.length > 0) setProfiles(list);
         else if (initialProfiles.length > 0) setProfiles(initialProfiles);
       })
       .catch(() => {
-        if (initialProfiles.length > 0) setProfiles(initialProfiles);
+        if (!cancelled && initialProfiles.length > 0) setProfiles(initialProfiles);
       })
-      .finally(() => setLoadingProfiles(false));
+      .finally(() => {
+        if (!cancelled) setLoadingProfiles(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [open, initialProfiles]);
 
-  // When profiles arrive, only auto-fill when we can match the ZIP owner (or a default)
+  // When the profile catalog arrives/updates, re-match from ZIP owner only —
+  // never force the dashboard's selected profile onto every file.
   useEffect(() => {
     if (profiles.length === 0) return;
     setQueue((prev) =>
       prev.map((item) => {
-        if (item.profileId) return item;
-        const matched =
-          matchSalesProfileId(item.detectedOwner, profiles) ||
-          defaultProfileId ||
-          "";
-        return matched ? { ...item, profileId: matched } : item;
+        if (item.status !== "pending") return item;
+        const matched = matchSalesProfileId(item.detectedOwner, profiles) || "";
+        return { ...item, profileId: matched };
       })
     );
-  }, [profiles, defaultProfileId]);
+  }, [profiles]);
 
   const addFiles = useCallback(
     async (fileList: FileList | File[]) => {
@@ -141,9 +144,8 @@ export function LinkedInUploadDialog({
       const items: QueueItem[] = [];
       for (const file of files.filter((f) => f.size <= 100 * 1024 * 1024)) {
         const owner = await peekOwnerFromZip(file);
-        // Leave empty for auto match/create on the server — never force first profile
-        const matched =
-          matchSalesProfileId(owner, profiles) || defaultProfileId || "";
+        // Only auto-select when ZIP owner confidently matches a profile
+        const matched = matchSalesProfileId(owner, profiles) || "";
         items.push({
           id: newId(),
           file,
@@ -156,7 +158,7 @@ export function LinkedInUploadDialog({
       setStage("idle");
       setError("");
     },
-    [profiles, defaultProfileId]
+    [profiles]
   );
 
   const handleDrop = useCallback(
@@ -280,8 +282,15 @@ export function LinkedInUploadDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {loadingProfiles && (
+          {loadingProfiles ? (
             <p className="text-xs text-muted-foreground">Loading profiles…</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {profiles.length} profile{profiles.length === 1 ? "" : "s"} available in the dropdown
+              {profiles.length > 0
+                ? ` (${profiles.map((p) => p.name).join(", ")})`
+                : " — upload will auto-create from Profile.csv"}
+            </p>
           )}
 
           <div
@@ -362,7 +371,7 @@ export function LinkedInUploadDialog({
                     </button>
                   </div>
                   <label className="block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Profile (optional)
+                    Assign to profile
                   </label>
                   <select
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground [color-scheme:dark]"
@@ -378,6 +387,11 @@ export function LinkedInUploadDialog({
                       </option>
                     ))}
                   </select>
+                  {!item.profileId && item.detectedOwner && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                      No exact match for “{item.detectedOwner}” — pick a profile or leave Auto to create one.
+                    </p>
+                  )}
                   {item.status === "error" && (
                     <p className="flex items-center gap-1 text-xs text-red-400">
                       <XCircle className="h-3.5 w-3.5" />

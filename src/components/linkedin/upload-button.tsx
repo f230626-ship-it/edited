@@ -8,12 +8,10 @@ import type { OutreachProfile } from "@/actions/linkedin-outreach";
 
 interface LinkedInUploadButtonProps {
   profiles: OutreachProfile[];
-  defaultProfileId?: string;
 }
 
 export function LinkedInUploadButton({
   profiles,
-  defaultProfileId,
 }: LinkedInUploadButtonProps) {
   const [open, setOpen] = useState(false);
 
@@ -29,7 +27,6 @@ export function LinkedInUploadButton({
         open={open}
         onOpenChange={setOpen}
         profiles={profiles}
-        defaultProfileId={defaultProfileId}
       />
     </>
   );
