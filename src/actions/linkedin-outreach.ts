@@ -1,10 +1,10 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+
 import { getCurrentEmployee, canAccessSales, isSalesOwner } from "@/lib/auth";
 import {
   aggregateInvitations,
-  aggregateConnections,
   mergePeriodMetrics,
   computeKpis,
   computeReportingWindow,
@@ -12,8 +12,12 @@ import {
   type PeriodMetric,
 } from "@/lib/linkedin/outreach-metrics";
 import { classifyMessagesByConversation } from "@/lib/linkedin/period-rollup";
-import { sendEmail } from "@/lib/email";
-import { isLastWorkingDayOfMonth, currentKarachiYearMonth } from "@/lib/linkedin/reminder-schedule";
+import {
+  isLastWorkingDayOfMonth,
+  isOnOrAfterLastWorkingDayOfMonth,
+  currentKarachiYearMonth,
+} from "@/lib/linkedin/reminder-schedule";
+import { postSlackMessage, buildReminderBlocks } from "@/lib/slack";
 
 export interface OutreachProfile {
   id: string;
@@ -146,7 +150,8 @@ function periodStatsToMetrics(
 
 async function loadWeeklyFromRaw(
   supabase: ReturnType<typeof createAdminClient>,
-  salesProfileId: string
+  salesProfileId: string,
+  monthFilter?: string | null
 ): Promise<PeriodMetric[]> {
   const { data: latestImport } = await supabase
     .from("linkedin_imports")
@@ -162,45 +167,115 @@ async function loadWeeklyFromRaw(
   const [{ data: invitations }, { data: connections }, { data: messages }] = await Promise.all([
     supabase
       .from("linkedin_invitations")
-      .select("direction, invitation_date")
+      .select("direction, invitation_date, invitee_profile_url, first_name, last_name")
       .eq("import_id", latestImport.id),
     supabase
       .from("linkedin_connections")
-      .select("connected_on")
+      .select("connected_on, profile_url, url, first_name, last_name")
       .eq("import_id", latestImport.id),
     supabase
       .from("linkedin_messages")
       .select(
-        "conversation_id, from_name, to_name, sent_at, is_from_owner, folder, content_preview, conversation_title, sender_profile_url, recipient_profile_urls, subject"
+        "conversation_id, from_name, to_name, sent_at, is_from_owner, folder, content_preview, conversation_title, sender_profile_url, recipient_profile_urls, subject, date, message_date, content, is_outbound"
       )
       .eq("import_id", latestImport.id),
   ]);
 
+  // Apply month filter to raw data before aggregation
+  let filteredInvitations = invitations || [];
+  let filteredConnections = connections || [];
+  let filteredMessages = messages || [];
+  if (monthFilter) {
+    const [filterYear, filterMonth] = monthFilter.split("-").map(Number);
+    filteredInvitations = filteredInvitations.filter((i) => {
+      if (!i.invitation_date) return false;
+      const d = new Date(i.invitation_date);
+      return !Number.isNaN(d.getTime()) && d.getFullYear() === filterYear && (d.getMonth() + 1) === filterMonth;
+    });
+    filteredConnections = filteredConnections.filter((c) => {
+      if (!c.connected_on) return false;
+      const d = new Date(c.connected_on);
+      return !Number.isNaN(d.getTime()) && d.getFullYear() === filterYear && (d.getMonth() + 1) === filterMonth;
+    });
+    filteredMessages = filteredMessages.filter((m) => {
+      const dateStr = m.sent_at || m.date || m.message_date;
+      if (!dateStr) return false;
+      const d = new Date(dateStr);
+      return !Number.isNaN(d.getTime()) && d.getFullYear() === filterYear && (d.getMonth() + 1) === filterMonth;
+    });
+  }
+
   const invMetrics = aggregateInvitations(
-    (invitations || []).map((i) => ({
+    filteredInvitations.map((i) => ({
       direction: i.direction,
       invitation_date: i.invitation_date,
     })),
     "weekly"
   );
-  const connMetrics = aggregateConnections(
-    (connections || []).map((c) => ({ connected_on: c.connected_on })),
-    "weekly"
-  );
+
+  // Bug 1 fix: only count connections that match someone we invited.
+  // Build invited URL/name sets from outgoing invitations.
+  function normalizeSlug(url: string | null | undefined): string | null {
+    if (!url) return null;
+    const m = url.toLowerCase().match(/linkedin\.com\/in\/([^/?#]+)/);
+    return m ? m[1].replace(/\/$/, "") : null;
+  }
+  function normalizeName(first?: string | null, last?: string | null): string | null {
+    const full = `${first || ""} ${last || ""}`.toLowerCase().replace(/\./g, "").replace(/\s+/g, " ").trim();
+    return full || null;
+  }
+
+  const invitedUrls = new Set<string>();
+  const invitedNames = new Set<string>();
+  for (const inv of filteredInvitations) {
+    if ((inv.direction || "").toUpperCase() !== "OUTGOING") continue;
+    const slug = normalizeSlug(inv.invitee_profile_url);
+    if (slug) invitedUrls.add(slug);
+    const name = normalizeName(inv.first_name, inv.last_name);
+    if (name) invitedNames.add(name);
+  }
+
+  // Build weekly buckets only for accepted connections (matched to invitations)
+  const weeklyConnMap = new Map<string, number>();
+  const monthNames2 = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  for (const conn of filteredConnections) {
+    if (!conn.connected_on) continue;
+    const slug = normalizeSlug(conn.profile_url || conn.url);
+    const name = normalizeName(conn.first_name, conn.last_name);
+    const matched = (slug != null && invitedUrls.has(slug)) || (name != null && invitedNames.has(name));
+    if (!matched) continue;
+    const d = new Date(conn.connected_on);
+    if (Number.isNaN(d.getTime())) continue;
+    const weekNum = Math.ceil(d.getUTCDate() / 7);
+    const key = `W${weekNum} ${monthNames2[d.getUTCMonth()]}`;
+    weeklyConnMap.set(key, (weeklyConnMap.get(key) || 0) + 1);
+  }
+
+  const connMetrics: PeriodMetric[] = Array.from(weeklyConnMap.entries()).map(([period, count]) => ({
+    period,
+    invitesSent: 0,
+    connectionsMade: count,
+    acceptanceRate: 0,
+    messagesSent: 0,
+    initialMessages: 0,
+    followUpsSent: 0,
+    repliesReceived: 0,
+    replyRate: 0,
+  }));
 
   const classified = classifyMessagesByConversation(
-    (messages || []).map((m) => ({
+    filteredMessages.map((m) => ({
       conversation_id: m.conversation_id,
       conversation_title: m.conversation_title,
       from_name: m.from_name,
       to_name: m.to_name,
       sender_profile_url: m.sender_profile_url,
       recipient_profile_urls: m.recipient_profile_urls,
-      sent_at: m.sent_at,
+      sent_at: m.sent_at || m.date || m.message_date || null,
       subject: m.subject,
-      content_preview: m.content_preview,
+      content_preview: m.content_preview || (m.content ? m.content.slice(0, 280) : null),
       folder: m.folder,
-      is_from_owner: m.is_from_owner,
+      is_from_owner: m.is_from_owner || m.is_outbound || false,
     }))
   );
 
@@ -486,7 +561,7 @@ export async function getLinkedInOutreachData(
   async function metricsFor(profileId: string): Promise<PeriodMetric[]> {
     if (!profileId) return [];
     if (granularity === "weekly") {
-      return loadWeeklyFromRaw(supabase, profileId);
+      return loadWeeklyFromRaw(supabase, profileId, monthKeySelected !== "all" ? monthKeySelected : null);
     }
     const rows =
       monthKeySelected === "all"
@@ -501,10 +576,9 @@ export async function getLinkedInOutreachData(
     compareProfileId && compareProfileId !== selected ? compareProfileId : null;
   const compareChartData = compareId ? await metricsFor(compareId) : [];
 
-  const selectedKpiMetric = sumPeriodRows(filterRows(selected));
-  const compareKpiMetric = compareId
-    ? sumPeriodRows(filterRows(compareId))
-    : null;
+  // Compute KPIs from chartData so they reflect the selected granularity
+  const selectedKpiMetric = computeKpis(chartData);
+  const compareKpiMetric = compareId ? computeKpis(compareChartData) : null;
 
   const glanceRows = profiles.map((p) => {
     const m = sumPeriodRows(filterRows(p.id));
@@ -548,8 +622,8 @@ export async function getLinkedInOutreachData(
     granularity,
     selectedMonthKey: monthKeySelected,
     availableMonths,
-    kpis: computeKpis([selectedKpiMetric]),
-    compareKpis: compareKpiMetric ? computeKpis([compareKpiMetric]) : null,
+    kpis: selectedKpiMetric,
+    compareKpis: compareKpiMetric,
     chartData,
     compareChartData,
     glanceRows,
@@ -577,8 +651,9 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
   errors: string[];
   reason?: string;
 }> {
-  if (!force && !isLastWorkingDayOfMonth(new Date())) {
-    return { sent: 0, skipped: 0, errors: [], reason: "Not last working day of month" };
+  // Persist reminders from last working day onward until all profiles upload
+  if (!force && !isOnOrAfterLastWorkingDayOfMonth(new Date())) {
+    return { sent: 0, skipped: 0, errors: [], reason: "Not yet last working day of month" };
   }
 
   const { year, month } = currentKarachiYearMonth(new Date());
@@ -647,14 +722,14 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
   const handlerIds = Array.from(
     new Set(linkedInProfiles.map((p) => p.employee_id).filter(Boolean))
   ) as string[];
-  const handlersById = new Map<string, { full_name: string; email: string }>();
+  const handlersById = new Map<string, { full_name: string; email: string; role: string }>();
   if (handlerIds.length > 0) {
     const { data: emps } = await supabase
       .from("employees")
-      .select("id, full_name, email")
+      .select("id, full_name, email, role")
       .in("id", handlerIds);
     for (const e of emps || []) {
-      if (e.email) handlersById.set(e.id, { full_name: e.full_name, email: e.email });
+      if (e.email) handlersById.set(e.id, { full_name: e.full_name, email: e.email, role: e.role || "" });
     }
   }
 
@@ -682,6 +757,10 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
     const emp = handlersById.get(p.employee_id);
     if (!emp?.email) {
       missingEmail += 1;
+      continue;
+    }
+    // Skip admin/CEO — they receive the PDF report, not upload reminders
+    if (emp.role === "admin" || emp.role === "ceo") {
       continue;
     }
     if (!byHandler.has(p.employee_id)) {
@@ -724,68 +803,45 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
   let skipped = alreadyCovered + unassigned + missingEmail;
   const errors: string[] = [];
 
-  for (const handler of byHandler.values()) {
-    if (handler.profiles.length === 0) {
-      skipped += 1;
-      continue;
+  // Skip email sending — Slack reminder is sufficient for handlers
+
+  // Post Slack reminder for ALL pending profiles (not per-handler)
+  const slackChannel = process.env.SLACK_CHANNEL_ID;
+  if (slackChannel) {
+    const pendingProfiles = linkedInProfiles
+      .filter((p) => !covered.has(p.id))
+      .map((p) => ({ name: p.name, profileId: p.id }));
+
+    if (pendingProfiles.length > 0) {
+      const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+      const monthLabel = `${monthNames[month - 1]} ${year}`;
+      const blocks = buildReminderBlocks(pendingProfiles, appUrl, monthLabel);
+      const ts = await postSlackMessage(
+        slackChannel,
+        `📊 LinkedIn Export Reminder — ${monthLabel}`,
+        blocks
+      );
+      if (ts) {
+        // Store slack thread ts for follow-up replies
+        await supabase.from("linkedin_export_reminders").upsert(
+          {
+            employee_id: "system",
+            period_year: year,
+            period_month: month,
+            profile_ids: pendingProfiles.map((p) => p.profileId),
+            status: "slack_sent",
+            message: `Slack reminder posted — ${monthLabel} LinkedIn export reminder sent`,
+            sent_at: new Date().toISOString(),
+            slack_thread_ts: ts,
+          },
+          { onConflict: "employee_id,period_year,period_month" }
+        );
+      }
     }
-
-    const profileList = handler.profiles
-      .map((p) => `<li><strong>${p.name}</strong></li>`)
-      .join("");
-
-    const html = `
-      <div style="font-family:system-ui,sans-serif;line-height:1.5;color:#111">
-        <p>Hi ${handler.name},</p>
-        <p>This is your monthly LinkedIn export reminder from MindVista HRMS.</p>
-        <p>Please download the LinkedIn data export for each profile you handle and upload the ZIP in HRMS:</p>
-        <ul>${profileList}</ul>
-        <p><strong>Steps</strong></p>
-        <ol>
-          <li>Open LinkedIn → Settings &amp; Privacy → Data privacy → Get a copy of your data</li>
-          <li>Request the archive (include Connections, Invitations, and Messages)</li>
-          <li>When LinkedIn emails the ZIP, download it</li>
-          <li>Upload it in HRMS → Sales → LinkedIn (select the matching profile)</li>
-        </ol>
-        <p><a href="${appUrl}/sales/linkedin?upload=1" style="display:inline-block;padding:10px 16px;background:#f59e0b;color:#111;border-radius:8px;text-decoration:none;font-weight:600">Open LinkedIn Stats upload</a></p>
-        <p style="color:#666;font-size:12px">Period: ${year}-${String(month).padStart(2, "0")}</p>
-      </div>
-    `;
-
-    const text = [
-      `Hi ${handler.name},`,
-      "",
-      "This is your monthly LinkedIn export reminder from MindVista HRMS.",
-      "Please download the LinkedIn data export for each profile you handle and upload the ZIP in HRMS:",
-      ...handler.profiles.map((p) => `- ${p.name}`),
-      "",
-      `Upload: ${appUrl}/sales/linkedin?upload=1`,
-      `Period: ${year}-${String(month).padStart(2, "0")}`,
-    ].join("\n");
-
-    const result = await sendEmail({
-      to: handler.email,
-      subject: `Reminder: Upload LinkedIn stats for ${handler.profiles.map((p) => p.name).join(", ")}`,
-      text,
-      html,
-    });
-
-    await supabase.from("linkedin_export_reminders").upsert(
-      {
-        employee_id: handler.employeeId,
-        period_year: year,
-        period_month: month,
-        profile_ids: handler.profiles.map((p) => p.id),
-        status: result.ok ? "sent" : "failed",
-        message: result.error || `Emailed ${handler.profiles.length} profile(s)`,
-        sent_at: new Date().toISOString(),
-      },
-      { onConflict: "employee_id,period_year,period_month" }
-    );
-
-    if (result.ok) sent += 1;
-    else errors.push(`${handler.email}: ${result.error || "send failed"}`);
   }
+
+  // Report is now generated only when an employee uploads a ZIP (see upload route)
+  // Not on reminder — ensures report always includes the latest uploaded data
 
   return { sent, skipped, errors };
 }

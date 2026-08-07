@@ -10,32 +10,34 @@ import type { CSVDataset, LinkedInDatasetType, LinkedInSummary } from '@/types/l
 // ============================================================================
 
 const DATASET_PATTERNS: Record<LinkedInDatasetType, RegExp[]> = {
-  profile: [/^profile\.csv$/i, /^Profile\.csv$/],
-  positions: [/^positions\.csv$/i, /^Positions\.csv$/],
-  skills: [/^skills\.csv$/i, /^Skills\.csv$/],
+  profile: [/^profile\.csv$/i, /^Profile\.csv$/, /^Profile_[^/\\]*\.csv$/i],
+  positions: [/^positions\.csv$/i, /^Positions\.csv$/, /^Positions_[^/\\]*\.csv$/i],
+  skills: [/^skills\.csv$/i, /^Skills\.csv$/, /^Skills_[^/\\]*\.csv$/i],
   endorsements: [
     /^endorsement.*\.csv$/i,
     /^Endorsement_Received_Info\.csv$/,
     /^endorsements.*\.csv$/i,
   ],
-  projects: [/^projects\.csv$/i, /^Projects\.csv$/],
-  education: [/^education\.csv$/i, /^Education\.csv$/],
-  certifications: [/^certifications\.csv$/i, /^Certifications\.csv$/],
-  invitations: [/^invitations\.csv$/i, /^Invitations\.csv$/],
-  connections: [/^connections\.csv$/i, /^Connections\.csv$/],
-  messages: [/^messages\.csv$/i, /^Messages\.csv$/],
+  projects: [/^projects\.csv$/i, /^Projects\.csv$/, /^Projects_[^/\\]*\.csv$/i],
+  education: [/^education\.csv$/i, /^Education\.csv$/, /^Education_[^/\\]*\.csv$/i],
+  certifications: [/^certifications\.csv$/i, /^Certifications\.csv$/, /^Certifications_[^/\\]*\.csv$/i],
+  invitations: [/^invitations\.csv$/i, /^Invitations\.csv$/, /^Invitations_[^/\\]*\.csv$/i],
+  connections: [/^connections\.csv$/i, /^Connections\.csv$/, /^Connections_[^/\\]*\.csv$/i],
+  messages: [/^messages\.csv$/i, /^Messages\.csv$/, /^Messages_[^/\\]*\.csv$/i],
   company_follows: [
     /^company.*follows?\.csv$/i,
     /^Company Follows\.csv$/,
     /^following.*companies\.csv$/i,
+    /^Followed Companies\.csv$/i,
   ],
-  learning: [/^learning\.csv$/i, /^Learning\.csv$/],
-  events: [/^events\.csv$/i, /^Events\.csv$/],
+  learning: [/^learning\.csv$/i, /^Learning\.csv$/, /^Learning_[^/\\]*\.csv$/i],
+  events: [/^events\.csv$/i, /^Events\.csv$/, /^Events_[^/\\]*\.csv$/i],
   job_applications: [
     /^job.*applications?\.csv$/i,
     /^Job Applications\.csv$/,
+    /^Job Applications_[^/\\]*\.csv$/i,
   ],
-  rich_media: [/^rich.*media\.csv$/i, /^Rich_Media\.csv$/],
+  rich_media: [/^rich.*media\.csv$/i, /^Rich_Media\.csv$/, /^Rich Media\.csv$/i],
   unknown: [],
 };
 
@@ -71,7 +73,7 @@ export function detectDatasetType(filename: string): LinkedInDatasetType {
  * Must be quote-aware across newlines — messages.csv embeds newlines inside CONTENT.
  */
 export function parseCSV(csvContent: string): Record<string, any>[] {
-  const records = splitCSVRecords(csvContent);
+  const records = splitCSVRecords(csvContent.replace(/^\uFEFF/, ""));
   if (records.length === 0) return [];
 
   const knownHeaders = [
@@ -247,6 +249,12 @@ export function normalizeDate(dateStr: string | null | undefined): string | null
     return isoTimeMatch[1];
   }
 
+  // YYYY-MM-DDTHH:MM:SS+00:00 (ISO 8601 with timezone offset)
+  const isoTzMatch = str.match(/^(\d{4}-\d{2}-\d{2})[T ]\d{2}:\d{2}:\d{2}/);
+  if (isoTzMatch) {
+    return isoTzMatch[1];
+  }
+
   // MM/DD/YYYY HH:MM (LinkedIn invitations "Sent At")
   const mdyTimeMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+\d{2}:\d{2}/);
   if (mdyTimeMatch) {
@@ -278,9 +286,9 @@ export function normalizeDate(dateStr: string | null | undefined): string | null
     const fullYear = yearNum >= 70 ? 1900 + yearNum : 2000 + yearNum;
     return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
   }
-
   // DD Mon YYYY (LinkedIn connections "Connected On": "22 Jul 2026")
-  const dmyMatch = str.match(/^(\d{1,2})\s+(\w+)\s+(\d{4})$/);
+  // Also handles locale abbreviations with trailing period: "22 jan. 2026"
+  const dmyMatch = str.match(/^(\d{1,2})\s+(\w+\.?)\s+(\d{4})$/);
   if (dmyMatch) {
     const [, day, monthName, year] = dmyMatch;
     const month = getMonthNumber(monthName);
@@ -290,7 +298,7 @@ export function normalizeDate(dateStr: string | null | undefined): string | null
   }
 
   // Mon DD, YYYY ("Jul 22, 2026")
-  const mdCommaYMatch = str.match(/^(\w+)\s+(\d{1,2}),\s*(\d{4})$/);
+  const mdCommaYMatch = str.match(/^(\w+\.?)\s+(\d{1,2}),\s*(\d{4})$/);
   if (mdCommaYMatch) {
     const [, monthName, day, year] = mdCommaYMatch;
     const month = getMonthNumber(monthName);
@@ -300,7 +308,7 @@ export function normalizeDate(dateStr: string | null | undefined): string | null
   }
 
   // Month YYYY (e.g., "January 2020")
-  const monthYearMatch = str.match(/^(\w+)\s+(\d{4})$/);
+  const monthYearMatch = str.match(/^(\w+\.?)\s+(\d{4})$/);
   if (monthYearMatch) {
     const [, monthName, year] = monthYearMatch;
     const month = getMonthNumber(monthName);
@@ -314,10 +322,22 @@ export function normalizeDate(dateStr: string | null | undefined): string | null
     return `${str}-01-01`;
   }
 
+  // Final fallback: let JS Date parse anything else (catches unusual locale formats)
+  const fallback = new Date(str);
+  if (!Number.isNaN(fallback.getTime())) {
+    const y = fallback.getUTCFullYear();
+    const m = String(fallback.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(fallback.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   return null;
 }
 
+
 function getMonthNumber(monthName: string): string | null {
+  // Strip trailing periods: "jan." → "jan"
+  const cleaned = monthName.toLowerCase().replace(/\.$/,"");
   const months: Record<string, string> = {
     jan: '01', january: '01',
     feb: '02', february: '02',
@@ -333,7 +353,13 @@ function getMonthNumber(monthName: string): string | null {
     dec: '12', december: '12',
   };
 
-  return months[monthName.toLowerCase()] || null;
+  if (months[cleaned]) return months[cleaned];
+
+  // Fallback: let JS Date parse it (handles locale abbreviations)
+  const d = new Date(`${cleaned} 1 2000`);
+  if (!Number.isNaN(d.getTime())) return String(d.getMonth() + 1).padStart(2, '0');
+
+  return null;
 }
 
 /**
@@ -550,9 +576,32 @@ export interface ParsedLinkedInMessage {
 function normalizeMessageDateTime(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const str = raw.trim();
+  if (!str) return null;
   // 2026-07-22 11:48:20 UTC
   const m = str.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/);
   if (m) return `${m[1]}T${m[2]}Z`;
+  // 2026-07-22T11:48:20.000+00:00 (ISO with milliseconds and timezone)
+  const isoFull = str.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})/);
+  if (isoFull) return `${isoFull[1]}T${isoFull[2]}Z`;
+  // MM/DD/YYYY HH:MM (US format)
+  const mdyTime = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+  if (mdyTime) {
+    const [, month, day, year, hour, min] = mdyTime;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${min}:00Z`;
+  }
+  // DD/MM/YYYY HH:MM (EU format)
+  const dmyTime = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+  if (dmyTime) {
+    const [, day, month, year, hour, min] = dmyTime;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${min}:00Z`;
+  }
+  // Mon DD, YYYY HH:MM
+  const monDayTime = str.match(/^(\w+\.?)\s+(\d{1,2}),?\s+(\d{4})\s+(\d{1,2}):(\d{2})/);
+  if (monDayTime) {
+    const [, monthName, day, year, hour, min] = monDayTime;
+    const month = getMonthNumber(monthName);
+    if (month) return `${year}-${month}-${day.padStart(2, "0")}T${hour.padStart(2, "0")}:${min}:00Z`;
+  }
   const dateOnly = normalizeDate(str);
   return dateOnly ? `${dateOnly}T00:00:00Z` : null;
 }
@@ -576,9 +625,28 @@ export function parseMessagesData(
     const is_from_owner =
       owners.length === 0
         ? false
-        : owners.some((o) => fromLower === o || fromLower.includes(o) || o.includes(fromLower));
+        : owners.some((o) => {
+            if (fromLower === o) return true;
+            // Normalize both: remove dots and extra whitespace, then compare
+            const norm = (s: string) => s.replace(/\./g, "").replace(/\s+/g, " ").trim();
+            if (norm(fromLower) === norm(o)) return true;
+            // Allow substring only when FROM is strictly LONGER than the owner name.
+            // e.g. "Abdul Hafeez (LinkedIn)" contains "Abdul Hafeez" → valid.
+            // Never allow when FROM is shorter: "Abdul" must NOT match "Abdul Hafeez".
+            if (fromLower.length > o.length && fromLower.includes(o)) return true;
+            return false;
+          });
 
-    const content = pickColumn(row, ["CONTENT", "Content", "content", "Message", "Body"]) || "";
+    const content = pickColumn(row, [
+      "CONTENT", "Content", "content",
+      "MESSAGE", "Message", "message",
+      "BODY", "Body", "body",
+      "TEXT", "Text", "text",
+      "MESSAGE CONTENT", "Message Content",
+      "MSG CONTENT", "Msg Content",
+      "MSG BODY", "Msg Body",
+      "MESSAGE BODY", "Message Body",
+    ]) || "";
     const content_preview =
       typeof content === "string" ? content.slice(0, 280) : null;
 
@@ -604,11 +672,20 @@ export function parseMessagesData(
           "recipient_profile_urls",
         ]) || null,
       sent_at: normalizeMessageDateTime(
-        pickColumn(row, ["DATE", "Date", "date", "Sent At", "Timestamp", "Created At"])
+        pickColumn(row, [
+          "DATE", "Date", "date",
+          "SENT AT", "Sent At", "sent at",
+          "TIMESTAMP", "Timestamp", "timestamp",
+          "CREATED AT", "Created At", "created at",
+          "MESSAGE DATE", "Message Date", "message date",
+          "MSG DATE", "Msg Date",
+          "WHEN", "When", "when",
+          "TIME", "Time", "time",
+        ])
       ),
       subject: pickColumn(row, ["SUBJECT", "Subject", "subject"]) || null,
       content_preview,
-      folder: pickColumn(row, ["FOLDER", "Folder", "folder"]) || null,
+      folder: pickColumn(row, ["FOLDER", "Folder", "folder", "CATEGORY", "Category", "category", "LABEL", "Label", "label"]) || null,
       is_from_owner,
     };
   });
@@ -686,8 +763,20 @@ export function parseConnectionsData(data: Record<string, any>[]): any[] {
     company: pickColumn(row, ['Company', 'company', 'Organization', 'organisation']),
     position: pickColumn(row, ['Position', 'position', 'Title', 'Job Title', 'job-title']),
     profile_url:
-      pickColumn(row, ['URL', 'Url', 'url', 'Profile URL', 'ProfileUrl', 'LinkedIn URL']) || null,
-    connected_on: normalizeDate(pickColumn(row, ['Connected On', 'ConnectedOn', 'connected_on', 'Date', 'Connection Date', 'Connected Date', 'Connected'])),
+      pickColumn(row, [
+        'URL', 'Url', 'url', 'PROFILE URL', 'Profile URL', 'ProfileUrl',
+        'LINKEDIN URL', 'LinkedIn URL', 'linkedin url',
+        'PROFILE LINK', 'Profile Link', 'profile link',
+        'LINK', 'Link', 'link',
+        'CONNECTION URL', 'Connection URL',
+      ]) || null,
+    connected_on: normalizeDate(pickColumn(row, [
+      'CONNECTED ON', 'Connected On', 'connected on', 'ConnectedOn', 'connected_on',
+      'DATE', 'Date', 'date',
+      'CONNECTION DATE', 'Connection Date', 'connection date',
+      'CONNECTED DATE', 'Connected Date', 'connected date',
+      'CONNECTED', 'Connected', 'connected',
+    ])),
   }));
 }
 

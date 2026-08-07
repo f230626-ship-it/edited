@@ -63,6 +63,13 @@ export const brevoProvider: EmailProvider = {
         body.htmlContent = payload.html;
       }
 
+      if (payload.attachments?.length) {
+        body.attachment = payload.attachments.map((a) => ({
+          name: a.name,
+          content: a.content, // base64
+        }));
+      }
+
       const response = await fetch(BREVO_SEND_URL, {
         method: "POST",
         headers: {

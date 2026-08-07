@@ -10,6 +10,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   transpilePackages: ["es-toolkit", "tiny-invariant"],
+  serverExternalPackages: ["@resvg/resvg-js", "satori", "puppeteer-core"],
   turbopack: {
     root: ".",
   },

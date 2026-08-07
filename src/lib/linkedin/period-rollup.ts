@@ -97,7 +97,9 @@ export function classifyMessagesByConversation(
           is_reply: false,
         });
       } else {
-        // Any inbound message counts as a reply (matches LinkedIn July KPIs)
+        // Only count as a reply if the owner sent at least one outbound first.
+        // Unsolicited inbound messages are not replies to outreach.
+        if (outboundCount === 0) continue;
         classified.push({
           sent_at: msg.sent_at,
           is_initial: false,

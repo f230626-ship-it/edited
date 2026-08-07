@@ -54,15 +54,49 @@ async function peekOwnerFromZip(file: File): Promise<string | null> {
       const bas = name.split("/").pop()?.split("\\").pop() || name;
       if (!/^profile\.csv$/i.test(bas)) continue;
       const text = await zip.files[name].async("text");
-      const lines = text.split("\n").filter((l) => l.trim());
+
+      // Quote-aware CSV parsing — handles "Lahore, Pakistan" style fields
+      function parseCSVLine(line: string): string[] {
+        const result: string[] = [];
+        let current = "";
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          const next = line[i + 1];
+          if (char === '"') {
+            if (inQuotes && next === '"') { current += '"'; i++; }
+            else { inQuotes = !inQuotes; }
+          } else if (char === "," && !inQuotes) {
+            result.push(current.trim());
+            current = "";
+          } else {
+            current += char;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      }
+
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
       if (lines.length < 2) return null;
-      // naive CSV header + first row
-      const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
-      const values = lines[1].split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
+
+      // Find the header row (first row with "First Name" or "Last Name")
+      let headerLine = lines[0];
+      let dataLine = lines[1];
+      for (let i = 0; i < Math.min(5, lines.length - 1); i++) {
+        const h = lines[i].toLowerCase();
+        if (h.includes("first name") || h.includes("firstname") || h.includes("last name")) {
+          headerLine = lines[i];
+          dataLine = lines[i + 1];
+          break;
+        }
+      }
+
+      const headers = parseCSVLine(headerLine);
+      const values = parseCSVLine(dataLine);
       const row: Record<string, string> = {};
-      headers.forEach((h, i) => {
-        row[h] = values[i] || "";
-      });
+      headers.forEach((h, i) => { row[h.trim()] = values[i] || ""; });
+
       const first =
         row["First Name"] || row["FirstName"] || row["first_name"] || "";
       const last = row["Last Name"] || row["LastName"] || row["last_name"] || "";
@@ -74,6 +108,7 @@ async function peekOwnerFromZip(file: File): Promise<string | null> {
   }
   return null;
 }
+
 
 export function LinkedInUploadDialog({
   open,

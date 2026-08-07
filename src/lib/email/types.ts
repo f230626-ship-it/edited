@@ -2,6 +2,15 @@
  * Minimal email payload for transactional auth emails.
  * Keep this narrow — only what auth flows need.
  */
+export interface EmailAttachment {
+  /** Filename shown to recipient e.g. "linkedin-report-2025-07.pdf" */
+  name: string;
+  /** Base64-encoded file content */
+  content: string;
+  /** MIME type e.g. "application/pdf" */
+  contentType: string;
+}
+
 export interface EmailPayload {
   to: string;
   subject: string;
@@ -9,6 +18,8 @@ export interface EmailPayload {
   text: string;
   /** HTML body (optional but strongly recommended) */
   html?: string;
+  /** File attachments (optional) */
+  attachments?: EmailAttachment[];
 }
 
 export interface EmailResult {

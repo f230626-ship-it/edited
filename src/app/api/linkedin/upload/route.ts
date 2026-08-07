@@ -247,6 +247,16 @@ export async function POST(req: NextRequest) {
     revalidatePath("/sales/linkedin/intelligence");
     revalidatePath("/sales/admin/profiles");
 
+    // After successful upload, generate and email the monthly report in the background
+    // so the upload response returns immediately
+    const { generateAndSendMonthlyReport } = await import("@/actions/monthly-report");
+    generateAndSendMonthlyReport(true)
+      .then((r) => {
+        if (r.success) console.log(`[LinkedIn upload] Monthly report sent for ${r.month} (${r.profilesIncluded} profiles)`);
+        else console.warn(`[LinkedIn upload] Monthly report skipped: ${r.error}`);
+      })
+      .catch((e) => console.error("[LinkedIn upload] Monthly report error:", e));
+
     return NextResponse.json({
       success: true,
       importId,
@@ -258,6 +268,7 @@ export async function POST(req: NextRequest) {
       months: periodRows.length,
       datasets: datasets.map((d) => ({ type: d.type, rows: d.rowCount })),
       storeResults,
+      report: null,
     });
   } catch (err: unknown) {
     console.error("[LinkedIn API upload] Error:", err);
@@ -387,25 +398,46 @@ async function storeAllData(
         case "invitations": {
           const rows = parseInvitationsData(dataset.data);
           if (rows.length) {
-            const { error } = await supabase
-              .from("linkedin_invitations")
-              .insert(rows.map((r) => ({ ...base, ...r })));
-            results.invitations = error ? `ERR: ${error.message}` : `ok(${rows.length})`;
+            const chunkSize = 500;
+            let inserted = 0;
+            let lastError: string | null = null;
+            for (let i = 0; i < rows.length; i += chunkSize) {
+              const chunk = rows.slice(i, i + chunkSize).map((r) => ({
+                ...base,
+                profile_id: salesProfileId,
+                ...r,
+              }));
+              const { error } = await supabase.from("linkedin_invitations").insert(chunk);
+              if (error) { lastError = error.message; break; }
+              inserted += chunk.length;
+            }
+            results.invitations = lastError ? `ERR: ${lastError} (inserted ${inserted})` : `ok(${inserted})`;
           }
           break;
         }
         case "connections": {
           const rows = parseConnectionsData(dataset.data);
           if (rows.length) {
-            const { error } = await supabase
-              .from("linkedin_connections")
-              .insert(rows.map((r) => ({ ...base, ...r })));
-            results.connections = error ? `ERR: ${error.message}` : `ok(${rows.length})`;
+            const chunkSize = 500;
+            let inserted = 0;
+            let lastError: string | null = null;
+            for (let i = 0; i < rows.length; i += chunkSize) {
+              const chunk = rows.slice(i, i + chunkSize).map((r) => ({
+                ...base,
+                profile_id: salesProfileId,
+                url: r.profile_url,
+                ...r,
+              }));
+              const { error } = await supabase.from("linkedin_connections").insert(chunk);
+              if (error) { lastError = error.message; break; }
+              inserted += chunk.length;
+            }
+            results.connections = lastError ? `ERR: ${lastError} (inserted ${inserted})` : `ok(${inserted})`;
           }
           break;
         }
         case "messages": {
-          const rows = parseMessagesData(dataset.data, [ownerName]);
+          const rows = parseMessagesData(dataset.data, [displayName, profile.name]);
           if (rows.length) {
             // Cap insert size for very large exports
             const chunkSize = 500;
@@ -415,7 +447,13 @@ async function storeAllData(
               const chunk = rows.slice(i, i + chunkSize).map((r) => ({
                 ...base,
                 sales_profile_id: salesProfileId,
+                profile_id: salesProfileId,
                 ...r,
+                // Also write to extra DB columns for compatibility
+                date: r.sent_at || null,
+                content: r.content_preview || null,
+                is_outbound: r.is_from_owner,
+                message_date: r.sent_at || null,
               }));
               const { error } = await supabase.from("linkedin_messages").insert(chunk);
               if (error) {

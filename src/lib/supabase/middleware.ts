@@ -188,6 +188,9 @@ export async function updateSession(request: NextRequest) {
     pathname === "/api/test-email" ||
     pathname.startsWith("/api/cron/");
 
+  const isPublicPage =
+    pathname.startsWith("/linkedin-report-render/");
+
   if (!isOriginAllowed(request)) {
     applySecurityHeaders(supabaseResponse);
     if (isApiRoute) {
@@ -217,7 +220,7 @@ export async function updateSession(request: NextRequest) {
   const jwtStatus = await localJwtCheck(request);
 
   // On auth pages, never hard-block — allow login form even with stale cookies.
-  if (jwtStatus === "invalid" && !isAuthPage) {
+  if (jwtStatus === "invalid" && !isAuthPage && !isPublicPage) {
     applySecurityHeaders(supabaseResponse);
     if (isApiRoute) {
       const res = NextResponse.json(
@@ -246,7 +249,7 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  if (!user && !isAuthPage && !isPublicApiRoute && pathname !== "/") {
+  if (!user && !isAuthPage && !isPublicApiRoute && !isPublicPage && pathname !== "/") {
     if (isApiRoute) {
       const unauthResponse = NextResponse.json(
         { code: "UNAUTHORIZED", message: "Authentication required" },

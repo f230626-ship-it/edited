@@ -119,20 +119,13 @@ export function LinkedInStatsDashboard({
   const handleSendReminder = () => {
     startTransition(async () => {
       const result = await sendLinkedInExportReminders(true);
-      if (result.sent === 0) {
-        const detail = [
-          result.reason,
-          ...result.errors.slice(0, 3),
-        ]
-          .filter(Boolean)
-          .join(" · ");
-        toast.error(detail || "No reminders sent");
+      if (result.errors.length > 0) {
+        const detail = result.errors.slice(0, 3).join(" · ");
+        toast.error(detail || "Something went wrong");
         return;
       }
       toast.success(
-        `Reminders sent: ${result.sent}${
-          result.errors.length ? ` (${result.errors.length} failed)` : ""
-        }`
+        `Slack reminder sent · Monthly PDF report emailed to admin`
       );
     });
   };
