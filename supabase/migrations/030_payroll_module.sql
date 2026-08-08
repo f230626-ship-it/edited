@@ -44,7 +44,7 @@ SELECT
   e.id,
   COALESCE(e.basic_salary, 0),
   COALESCE(e.allowances, 0),
-  COALESCE(e.currency, 'USD'),
+  'USD',
   COALESCE(e.payment_cycle::text, 'monthly'),
   e.employment_type::text,
   CASE
