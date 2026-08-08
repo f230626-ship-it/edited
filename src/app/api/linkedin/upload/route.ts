@@ -212,7 +212,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            error: `LinkedIn data already exists for "${profile.name}" for this period. Please upload a different month's export.`,
+            error: `Duplicate rejected: "${profile.name}" already has data for ${existingPeriods.join(", ")}. Upload a ZIP with different months only.`,
           },
           { status: 409 }
         );
