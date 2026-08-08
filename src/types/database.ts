@@ -531,3 +531,242 @@ export interface TeamAuditLog {
   actor?: Pick<Employee, "id" | "full_name">;
 }
 
+// ─── Payroll & Commission ────────────────────────────────────────────────────
+
+export type CommissionBasis = "INVOICED" | "PAID" | "PARTIALLY_PAID" | "PROJECT_VALUE";
+export type CommissionLedgerStatus = "PENDING" | "APPROVED" | "PAID" | "REVERSED" | "CANCELLED";
+export type PayrollPeriodStatus =
+  | "DRAFT"
+  | "CALCULATING"
+  | "REVIEW_REQUIRED"
+  | "READY_FOR_APPROVAL"
+  | "APPROVED"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "REJECTED"
+  | "CANCELLED";
+export type PayrollAnomalySeverity = "INFO" | "WARNING" | "CRITICAL";
+export type PayrollEmailStatus = "DRAFT" | "READY" | "APPROVED" | "SENT" | "FAILED";
+export type InvoiceStatus =
+  | "draft"
+  | "sent"
+  | "due"
+  | "partially_paid"
+  | "paid"
+  | "cancelled"
+  | "overdue";
+
+export interface EmployeeCompensation {
+  id: string;
+  employee_id: string;
+  basic_salary: number;
+  allowances: number;
+  currency: string;
+  salary_frequency: PaymentCycle;
+  employment_type: string | null;
+  commission_eligible: boolean;
+  commission_role: string | null;
+  bank_name: string | null;
+  bank_account_number: string | null;
+  effective_from: string;
+  effective_until: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommissionRule {
+  id: string;
+  name: string;
+  role: string;
+  commission_percentage: number;
+  fixed_commission: number;
+  commission_basis: CommissionBasis;
+  conditions: Record<string, unknown>;
+  effective_from: string;
+  effective_until: string | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Invoice {
+  id: string;
+  project_id: string | null;
+  invoice_number: string;
+  client_name: string | null;
+  invoice_date: string | null;
+  due_date: string | null;
+  amount: number;
+  currency: string;
+  status: InvoiceStatus;
+  notes: string | null;
+  external_ref: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  project?: Pick<Project, "id" | "name" | "bd_id" | "closing_developer_id"> | null;
+}
+
+export interface InvoicePayment {
+  id: string;
+  invoice_id: string;
+  amount: number;
+  currency: string;
+  paid_at: string;
+  external_ref: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface CommissionLedgerEntry {
+  id: string;
+  employee_id: string;
+  project_id: string | null;
+  invoice_id: string | null;
+  payment_id: string | null;
+  commission_rule_id: string | null;
+  revenue_basis: string;
+  revenue_amount: number;
+  commission_percentage: number;
+  commission_amount: number;
+  currency: string;
+  payroll_period_id: string | null;
+  status: CommissionLedgerStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollPeriod {
+  id: string;
+  label: string;
+  period_year: number;
+  period_month: number;
+  start_date: string;
+  end_date: string;
+  pay_date: string;
+  status: PayrollPeriodStatus;
+  total_gross: number;
+  total_commissions: number;
+  total_deductions: number;
+  total_net: number;
+  currency: string;
+  created_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  rejected_by: string | null;
+  rejected_at: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollRecord {
+  id: string;
+  payroll_period_id: string;
+  employee_id: string;
+  base_salary: number;
+  allowances: number;
+  commission_total: number;
+  bonus: number;
+  deductions: number;
+  gross_pay: number;
+  net_pay: number;
+  currency: string;
+  compensation_id: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  employee?: Pick<Employee, "id" | "full_name" | "email" | "employee_code" | "designation">;
+  line_items?: PayrollLineItem[];
+}
+
+export interface PayrollLineItem {
+  id: string;
+  payroll_record_id: string;
+  line_type: "base_salary" | "allowance" | "commission" | "bonus" | "deduction" | "other";
+  description: string;
+  amount: number;
+  currency: string;
+  meta: Record<string, unknown>;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface PayrollAnomaly {
+  id: string;
+  payroll_period_id: string | null;
+  employee_id: string | null;
+  severity: PayrollAnomalySeverity;
+  code: string;
+  message: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  resolution_note: string | null;
+  created_at: string;
+  employee?: Pick<Employee, "id" | "full_name"> | null;
+}
+
+export interface SalarySlip {
+  id: string;
+  payroll_period_id: string;
+  payroll_record_id: string;
+  employee_id: string;
+  pdf_base64: string | null;
+  storage_path: string | null;
+  generated_at: string;
+}
+
+export interface PayrollEmailQueueItem {
+  id: string;
+  payroll_period_id: string;
+  employee_id: string;
+  salary_slip_id: string | null;
+  to_email: string;
+  subject: string;
+  body_text: string;
+  body_html: string | null;
+  status: PayrollEmailStatus;
+  idempotency_key: string;
+  error: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+  employee?: Pick<Employee, "id" | "full_name" | "email">;
+}
+
+export interface PayrollSettings {
+  id: string;
+  pay_day_of_month: number;
+  reminder_days_before: number[];
+  company_name: string;
+  company_address: string | null;
+  slip_footer: string | null;
+  default_currency: string;
+  admin_notify_email: string | null;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+export interface PayrollAuditLog {
+  id: string;
+  actor_id: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  previous_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  ip_address: string | null;
+  created_at: string;
+}
+
+

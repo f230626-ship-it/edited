@@ -20,6 +20,7 @@ import {
   LineChart,
   ChevronRight,
   UsersRound,
+  Wallet,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { BrandLogo } from "@/components/ui/brand-logo";
@@ -95,6 +96,13 @@ const adminNav: NavItem[] = [
     icon: Users, 
     roles: ["admin", "hr"],
     description: "Manage staff"
+  },
+  {
+    title: "Payroll",
+    href: "/admin/payroll",
+    icon: Wallet,
+    roles: ["admin"],
+    description: "Salary & commissions",
   },
   { 
     title: "Leave Approvals", 

@@ -631,6 +631,14 @@ export default async function EmployeeDetailsPage({ params }: EmployeeDetailsPag
                     )}
                     {employee.currency && <CompCell label="Currency" value={employee.currency} />}
                   </div>
+                  <div className="mt-4 text-center">
+                    <a
+                      href="/admin/payroll/compensation"
+                      className="text-xs font-semibold text-emerald-600 hover:underline"
+                    >
+                      Manage versioned compensation →
+                    </a>
+                  </div>
                 </div>
               </InfoCard>
             )}
