@@ -95,7 +95,6 @@ export async function createCompensationVersion(input: {
     .update({
       basic_salary: input.basicSalary,
       allowances: input.allowances,
-      currency: input.currency,
       payment_cycle: input.salaryFrequency,
       bank_name: input.bankName ?? null,
       bank_account_number: input.bankAccountNumber ?? null,
