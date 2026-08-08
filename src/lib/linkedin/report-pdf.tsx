@@ -8,8 +8,6 @@
  */
 
 import React from "react";
-import { readFileSync } from "fs";
-import { join } from "path";
 import {
   Document,
   Page,
@@ -19,16 +17,20 @@ import {
   StyleSheet,
   Font,
 } from "@react-pdf/renderer";
+import { getInterBold, getInterRegular } from "./fonts";
 
 // Register Inter font from local woff files as base64 data URIs
-const regularFont = readFileSync(join(process.cwd(), "public", "fonts", "Inter-Regular.woff"));
-const boldFont = readFileSync(join(process.cwd(), "public", "fonts", "Inter-Bold.woff"));
-
 Font.register({
   family: "Inter",
   fonts: [
-    { src: `data:font/woff;base64,${regularFont.toString("base64")}`, fontWeight: 400 },
-    { src: `data:font/woff;base64,${boldFont.toString("base64")}`, fontWeight: 700 },
+    {
+      src: `data:font/woff;base64,${getInterRegular().toString("base64")}`,
+      fontWeight: 400,
+    },
+    {
+      src: `data:font/woff;base64,${getInterBold().toString("base64")}`,
+      fontWeight: 700,
+    },
   ],
 });
 

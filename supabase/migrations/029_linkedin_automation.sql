@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS public.monthly_report_log (
 ALTER TABLE public.monthly_report_log ENABLE ROW LEVEL SECURITY;
 
 -- Allow service role full access (used by cron and actions via admin client)
+DROP POLICY IF EXISTS "service_role_all_monthly_report_log" ON public.monthly_report_log;
 CREATE POLICY "service_role_all_monthly_report_log"
   ON public.monthly_report_log
   FOR ALL
@@ -33,6 +34,7 @@ CREATE POLICY "service_role_all_monthly_report_log"
   WITH CHECK (true);
 
 -- Admins can read the log for debugging
+DROP POLICY IF EXISTS "admin_read_monthly_report_log" ON public.monthly_report_log;
 CREATE POLICY "admin_read_monthly_report_log"
   ON public.monthly_report_log
   FOR SELECT

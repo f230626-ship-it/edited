@@ -125,7 +125,9 @@ export function LinkedInStatsDashboard({
         return;
       }
       toast.success(
-        `Slack reminder sent · Monthly PDF report emailed to admin`
+        result.sent > 0
+          ? `Slack reminder sent (${result.sent} handler${result.sent === 1 ? "" : "s"})`
+          : result.reason || "Reminder completed"
       );
     });
   };

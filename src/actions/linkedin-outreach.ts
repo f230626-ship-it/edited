@@ -660,28 +660,17 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
   const supabase = createAdminClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://hrms.mindvista.io";
 
-  // Same path as password-reset: src/lib/email → Brevo/Resend.
-  // Note: forgot-password can still work without these vars (Supabase SMTP fallback).
-  // LinkedIn reminders cannot — they are custom transactional emails.
-  const emailProvider = (process.env.EMAIL_PROVIDER || "").toLowerCase();
-  const hasProviderKey =
-    (emailProvider === "brevo" && !!process.env.BREVO_API_KEY) ||
-    (emailProvider === "resend" && !!process.env.RESEND_API_KEY);
-  if (!emailProvider || !hasProviderKey || !process.env.EMAIL_FROM) {
-    const missing = [
-      !emailProvider ? "EMAIL_PROVIDER" : null,
-      emailProvider === "brevo" && !process.env.BREVO_API_KEY ? "BREVO_API_KEY" : null,
-      emailProvider === "resend" && !process.env.RESEND_API_KEY ? "RESEND_API_KEY" : null,
-      !process.env.EMAIL_FROM ? "EMAIL_FROM" : null,
-    ].filter(Boolean);
+  // Slack is the primary channel; email env is optional (email sends currently skipped).
+  const hasSlack =
+    !!process.env.SLACK_BOT_TOKEN && !!process.env.SLACK_CHANNEL_ID;
+  if (!hasSlack) {
     return {
       sent: 0,
       skipped: 0,
       errors: [
-        `Missing email env in this runtime: ${missing.join(", ") || "unknown"}. ` +
-          `Forgot-password can work via Supabase alone; LinkedIn reminders need the same Brevo vars (EMAIL_PROVIDER, BREVO_API_KEY, EMAIL_FROM) available here — copy them into .env.local for local, or confirm they exist on Vercel for production, then restart/redeploy.`,
+        "Missing Slack env: set SLACK_BOT_TOKEN and SLACK_CHANNEL_ID on this runtime.",
       ],
-      reason: "Email provider not available in this environment",
+      reason: "Slack not configured",
     };
   }
 
@@ -729,7 +718,11 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
       .select("id, full_name, email, role")
       .in("id", handlerIds);
     for (const e of emps || []) {
-      if (e.email) handlersById.set(e.id, { full_name: e.full_name, email: e.email, role: e.role || "" });
+      handlersById.set(e.id, {
+        full_name: e.full_name,
+        email: e.email || "",
+        role: e.role || "",
+      });
     }
   }
 
@@ -755,7 +748,7 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
       continue;
     }
     const emp = handlersById.get(p.employee_id);
-    if (!emp?.email) {
+    if (!emp) {
       missingEmail += 1;
       continue;
     }
@@ -763,10 +756,11 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
     if (emp.role === "admin" || emp.role === "ceo") {
       continue;
     }
+    if (!emp.email) missingEmail += 1;
     if (!byHandler.has(p.employee_id)) {
       byHandler.set(p.employee_id, {
         employeeId: p.employee_id,
-        email: emp.email,
+        email: emp.email || "",
         name: emp.full_name || "there",
         profiles: [],
       });
@@ -774,7 +768,14 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
     byHandler.get(p.employee_id)!.profiles.push({ id: p.id, name: p.name });
   }
 
-  if (byHandler.size === 0) {
+  const pendingProfiles = linkedInProfiles
+    .filter((p) => !covered.has(p.id))
+    .map((p) => ({ name: p.name, profileId: p.id, employeeId: p.employee_id as string | null }));
+
+  let skipped = alreadyCovered + unassigned + missingEmail;
+  const errors: string[] = [];
+
+  if (pendingProfiles.length === 0) {
     const unassignedNames = linkedInProfiles
       .filter((p) => !p.employee_id)
       .map((p) => p.name);
@@ -791,57 +792,93 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
     ].filter(Boolean);
     return {
       sent: 0,
-      skipped: alreadyCovered + unassigned + missingEmail,
+      skipped,
       errors: [],
       reason: parts.length
         ? `Nothing to send: ${parts.join("; ")}`
-        : "No handlers to email",
+        : "No pending LinkedIn exports",
     };
   }
 
+  // Slack reminder for all pending profiles (channel-wide)
+  const slackChannel = process.env.SLACK_CHANNEL_ID!;
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+  const monthLabel = `${monthNames[month - 1]} ${year}`;
+  const blocks = buildReminderBlocks(
+    pendingProfiles.map((p) => ({ name: p.name, profileId: p.profileId })),
+    appUrl,
+    monthLabel
+  );
+  const ts = await postSlackMessage(
+    slackChannel,
+    `LinkedIn Export Reminder — ${monthLabel}`,
+    blocks
+  );
+
   let sent = 0;
-  let skipped = alreadyCovered + unassigned + missingEmail;
-  const errors: string[] = [];
+  if (!ts) {
+    errors.push("Failed to post Slack reminder");
+    return { sent: 0, skipped, errors };
+  }
 
-  // Skip email sending — Slack reminder is sufficient for handlers
+  // Persist one reminder row per handler (valid UUID FK + status CHECK)
+  const handlersToLog =
+    byHandler.size > 0
+      ? Array.from(byHandler.values())
+      : [];
 
-  // Post Slack reminder for ALL pending profiles (not per-handler)
-  const slackChannel = process.env.SLACK_CHANNEL_ID;
-  if (slackChannel) {
-    const pendingProfiles = linkedInProfiles
-      .filter((p) => !covered.has(p.id))
-      .map((p) => ({ name: p.name, profileId: p.id }));
-
-    if (pendingProfiles.length > 0) {
-      const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-      const monthLabel = `${monthNames[month - 1]} ${year}`;
-      const blocks = buildReminderBlocks(pendingProfiles, appUrl, monthLabel);
-      const ts = await postSlackMessage(
-        slackChannel,
-        `📊 LinkedIn Export Reminder — ${monthLabel}`,
-        blocks
+  if (handlersToLog.length === 0) {
+    // Still posted to Slack; log under any assigned employee on pending profiles
+    const fallbackIds = Array.from(
+      new Set(pendingProfiles.map((p) => p.employeeId).filter(Boolean))
+    ) as string[];
+    for (const employeeId of fallbackIds) {
+      const profileIds = pendingProfiles
+        .filter((p) => p.employeeId === employeeId)
+        .map((p) => p.profileId);
+      const { error } = await supabase.from("linkedin_export_reminders").upsert(
+        {
+          employee_id: employeeId,
+          period_year: year,
+          period_month: month,
+          profile_ids: profileIds,
+          status: "sent",
+          message: `Slack reminder posted — ${monthLabel}`,
+          sent_at: new Date().toISOString(),
+          slack_thread_ts: ts,
+        },
+        { onConflict: "employee_id,period_year,period_month" }
       );
-      if (ts) {
-        // Store slack thread ts for follow-up replies
-        await supabase.from("linkedin_export_reminders").upsert(
-          {
-            employee_id: "system",
-            period_year: year,
-            period_month: month,
-            profile_ids: pendingProfiles.map((p) => p.profileId),
-            status: "slack_sent",
-            message: `Slack reminder posted — ${monthLabel} LinkedIn export reminder sent`,
-            sent_at: new Date().toISOString(),
-            slack_thread_ts: ts,
-          },
-          { onConflict: "employee_id,period_year,period_month" }
-        );
-      }
+      if (error) errors.push(error.message);
+      else sent += 1;
+    }
+  } else {
+    for (const h of handlersToLog) {
+      const { error } = await supabase.from("linkedin_export_reminders").upsert(
+        {
+          employee_id: h.employeeId,
+          period_year: year,
+          period_month: month,
+          profile_ids: h.profiles.map((p) => p.id),
+          status: "sent",
+          message: `Slack reminder posted — ${monthLabel}`,
+          sent_at: new Date().toISOString(),
+          slack_thread_ts: ts,
+        },
+        { onConflict: "employee_id,period_year,period_month" }
+      );
+      if (error) errors.push(error.message);
+      else sent += 1;
     }
   }
 
-  // Report is now generated only when an employee uploads a ZIP (see upload route)
-  // Not on reminder — ensures report always includes the latest uploaded data
+  // If Slack posted but no employee rows to upsert (all unassigned), count as sent once
+  if (sent === 0 && errors.length === 0) {
+    sent = 1;
+  }
 
   return { sent, skipped, errors };
 }

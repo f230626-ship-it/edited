@@ -247,15 +247,7 @@ export async function POST(req: NextRequest) {
     revalidatePath("/sales/linkedin/intelligence");
     revalidatePath("/sales/admin/profiles");
 
-    // After successful upload, generate and email the monthly report in the background
-    // so the upload response returns immediately
-    const { generateAndSendMonthlyReport } = await import("@/actions/monthly-report");
-    generateAndSendMonthlyReport(true)
-      .then((r) => {
-        if (r.success) console.log(`[LinkedIn upload] Monthly report sent for ${r.month} (${r.profilesIncluded} profiles)`);
-        else console.warn(`[LinkedIn upload] Monthly report skipped: ${r.error}`);
-      })
-      .catch((e) => console.error("[LinkedIn upload] Monthly report error:", e));
+    // Monthly PDF is sent by cron (/api/cron/monthly-report) or admin action — not on every ZIP.
 
     return NextResponse.json({
       success: true,
