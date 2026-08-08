@@ -12,7 +12,7 @@ import {
   type PeriodMetric,
 } from "@/lib/linkedin/outreach-metrics";
 import { classifyMessagesByConversation } from "@/lib/linkedin/period-rollup";
-import { sendEmail } from "@/lib/email";
+import { postSlackMessage } from "@/lib/slack";
 import { isLastWorkingDayOfMonth, currentKarachiYearMonth } from "@/lib/linkedin/reminder-schedule";
 
 export interface OutreachProfile {
@@ -585,29 +585,9 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
   const supabase = createAdminClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://hrms.mindvista.io";
 
-  // Same path as password-reset: src/lib/email → Brevo/Resend.
-  // Note: forgot-password can still work without these vars (Supabase SMTP fallback).
-  // LinkedIn reminders cannot — they are custom transactional emails.
-  const emailProvider = (process.env.EMAIL_PROVIDER || "").toLowerCase();
-  const hasProviderKey =
-    (emailProvider === "brevo" && !!process.env.BREVO_API_KEY) ||
-    (emailProvider === "resend" && !!process.env.RESEND_API_KEY);
-  if (!emailProvider || !hasProviderKey || !process.env.EMAIL_FROM) {
-    const missing = [
-      !emailProvider ? "EMAIL_PROVIDER" : null,
-      emailProvider === "brevo" && !process.env.BREVO_API_KEY ? "BREVO_API_KEY" : null,
-      emailProvider === "resend" && !process.env.RESEND_API_KEY ? "RESEND_API_KEY" : null,
-      !process.env.EMAIL_FROM ? "EMAIL_FROM" : null,
-    ].filter(Boolean);
-    return {
-      sent: 0,
-      skipped: 0,
-      errors: [
-        `Missing email env in this runtime: ${missing.join(", ") || "unknown"}. ` +
-          `Forgot-password can work via Supabase alone; LinkedIn reminders need the same Brevo vars (EMAIL_PROVIDER, BREVO_API_KEY, EMAIL_FROM) available here — copy them into .env.local for local, or confirm they exist on Vercel for production, then restart/redeploy.`,
-      ],
-      reason: "Email provider not available in this environment",
-    };
+  const hasSlack = !!process.env.SLACK_BOT_TOKEN && !!process.env.SLACK_CHANNEL_ID;
+  if (!hasSlack) {
+    return { sent: 0, skipped: 0, errors: [], reason: "Slack not configured — set SLACK_BOT_TOKEN + SLACK_CHANNEL_ID" };
   }
 
   const { data: profiles, error: profilesError } = await supabase
@@ -624,16 +604,9 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
   );
 
   if (!linkedInProfiles.length) {
-    return {
-      sent: 0,
-      skipped: 0,
-      errors: [],
-      reason: "No active LinkedIn sales profiles — create or upload a ZIP first",
-    };
+    return { sent: 0, skipped: 0, errors: [], reason: "No active LinkedIn sales profiles" };
   }
 
-  // Cron skips profiles that already have this month's stats.
-  // Force ("Send reminder now") always emails handlers for all assigned profiles.
   const covered = new Set<string>();
   if (!force) {
     const { data: existingStats } = await supabase
@@ -647,145 +620,113 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
   const handlerIds = Array.from(
     new Set(linkedInProfiles.map((p) => p.employee_id).filter(Boolean))
   ) as string[];
-  const handlersById = new Map<string, { full_name: string; email: string }>();
+  const handlersById = new Map<string, string>();
   if (handlerIds.length > 0) {
     const { data: emps } = await supabase
       .from("employees")
-      .select("id, full_name, email")
+      .select("id, full_name")
       .in("id", handlerIds);
-    for (const e of emps || []) {
-      if (e.email) handlersById.set(e.id, { full_name: e.full_name, email: e.email });
-    }
+    for (const e of emps || []) handlersById.set(e.id, e.full_name || "there");
   }
 
-  type HandlerGroup = {
-    employeeId: string;
-    email: string;
-    name: string;
-    profiles: { id: string; name: string }[];
-  };
-
+  type HandlerGroup = { employeeId: string; name: string; profiles: { id: string; name: string }[] };
   const byHandler = new Map<string, HandlerGroup>();
   let unassigned = 0;
   let alreadyCovered = 0;
-  let missingEmail = 0;
 
   for (const p of linkedInProfiles) {
-    if (!p.employee_id) {
-      unassigned += 1;
-      continue;
-    }
-    if (covered.has(p.id)) {
-      alreadyCovered += 1;
-      continue;
-    }
-    const emp = handlersById.get(p.employee_id);
-    if (!emp?.email) {
-      missingEmail += 1;
-      continue;
-    }
+    if (!p.employee_id) { unassigned += 1; continue; }
+    if (covered.has(p.id)) { alreadyCovered += 1; continue; }
+    const name = handlersById.get(p.employee_id);
+    if (!name) continue;
     if (!byHandler.has(p.employee_id)) {
-      byHandler.set(p.employee_id, {
-        employeeId: p.employee_id,
-        email: emp.email,
-        name: emp.full_name || "there",
-        profiles: [],
-      });
+      byHandler.set(p.employee_id, { employeeId: p.employee_id, name, profiles: [] });
     }
     byHandler.get(p.employee_id)!.profiles.push({ id: p.id, name: p.name });
   }
 
   if (byHandler.size === 0) {
-    const unassignedNames = linkedInProfiles
-      .filter((p) => !p.employee_id)
-      .map((p) => p.name);
     const parts = [
-      alreadyCovered ? `${alreadyCovered} already uploaded this month` : null,
-      unassigned
-        ? `${unassigned} unassigned${
-            unassignedNames.length
-              ? ` (${unassignedNames.slice(0, 5).join(", ")}${unassignedNames.length > 5 ? "…" : ""}) — set a Rep on Sales → Profiles`
-              : ""
-          }`
-        : null,
-      missingEmail ? `${missingEmail} missing handler email` : null,
+      alreadyCovered ? `${alreadyCovered} already uploaded` : null,
+      unassigned ? `${unassigned} unassigned` : null,
     ].filter(Boolean);
-    return {
-      sent: 0,
-      skipped: alreadyCovered + unassigned + missingEmail,
-      errors: [],
-      reason: parts.length
-        ? `Nothing to send: ${parts.join("; ")}`
-        : "No handlers to email",
-    };
+    return { sent: 0, skipped: alreadyCovered + unassigned, errors: [], reason: parts.length ? parts.join("; ") : "No handlers to notify" };
   }
 
   let sent = 0;
-  let skipped = alreadyCovered + unassigned + missingEmail;
+  let skipped = alreadyCovered + unassigned;
   const errors: string[] = [];
 
-  for (const handler of byHandler.values()) {
-    if (handler.profiles.length === 0) {
-      skipped += 1;
-      continue;
+  const monthLabel = `${["January","February","March","April","May","June","July","August","September","October","November","December"][month - 1]} ${year}`;
+
+  const blocks = [
+    {
+      type: "header",
+      text: { type: "plain_text", text: `📊 LinkedIn Export Reminder — ${monthLabel}`, emoji: true },
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `Hi team 👋\n\nThis is a monthly reminder to export and upload your LinkedIn data ZIP for *${monthLabel}*.\n\nPlease download your export from LinkedIn, then upload it to the dashboard to keep your outreach stats up to date.`,
+      },
+    },
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Upload LinkedIn Export", emoji: true },
+          url: `${appUrl}/sales/linkedin?upload=1`,
+          style: "primary",
+        },
+      ],
+    },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: "_Go to LinkedIn Settings > Data Privacy > Get a copy of your data > Request archive. Once ready, download the ZIP and upload it via the button above._",
+        },
+      ],
+    },
+  ];
+
+  const slackText = `LinkedIn Export Reminder — ${monthLabel}\nHi team, please upload your LinkedIn data export.\nUpload: ${appUrl}/sales/linkedin?upload=1`;
+
+  let delivered = false;
+  let deliveryError = "";
+
+  try {
+    const ts = await postSlackMessage(process.env.SLACK_CHANNEL_ID!, slackText, blocks as any);
+    if (ts) {
+      delivered = true;
+    } else {
+      deliveryError = "Slack postMessage returned null";
     }
+  } catch (e: any) {
+    deliveryError = e.message || "slack request failed";
+  }
 
-    const profileList = handler.profiles
-      .map((p) => `<li><strong>${p.name}</strong></li>`)
-      .join("");
-
-    const html = `
-      <div style="font-family:system-ui,sans-serif;line-height:1.5;color:#111">
-        <p>Hi ${handler.name},</p>
-        <p>This is your monthly LinkedIn export reminder from MindVista HRMS.</p>
-        <p>Please download the LinkedIn data export for each profile you handle and upload the ZIP in HRMS:</p>
-        <ul>${profileList}</ul>
-        <p><strong>Steps</strong></p>
-        <ol>
-          <li>Open LinkedIn → Settings &amp; Privacy → Data privacy → Get a copy of your data</li>
-          <li>Request the archive (include Connections, Invitations, and Messages)</li>
-          <li>When LinkedIn emails the ZIP, download it</li>
-          <li>Upload it in HRMS → Sales → LinkedIn (select the matching profile)</li>
-        </ol>
-        <p><a href="${appUrl}/sales/linkedin?upload=1" style="display:inline-block;padding:10px 16px;background:#f59e0b;color:#111;border-radius:8px;text-decoration:none;font-weight:600">Open LinkedIn Stats upload</a></p>
-        <p style="color:#666;font-size:12px">Period: ${year}-${String(month).padStart(2, "0")}</p>
-      </div>
-    `;
-
-    const text = [
-      `Hi ${handler.name},`,
-      "",
-      "This is your monthly LinkedIn export reminder from MindVista HRMS.",
-      "Please download the LinkedIn data export for each profile you handle and upload the ZIP in HRMS:",
-      ...handler.profiles.map((p) => `- ${p.name}`),
-      "",
-      `Upload: ${appUrl}/sales/linkedin?upload=1`,
-      `Period: ${year}-${String(month).padStart(2, "0")}`,
-    ].join("\n");
-
-    const result = await sendEmail({
-      to: handler.email,
-      subject: `Reminder: Upload LinkedIn stats for ${handler.profiles.map((p) => p.name).join(", ")}`,
-      text,
-      html,
-    });
-
+  // Log once for all handlers
+  for (const handler of byHandler.values()) {
     await supabase.from("linkedin_export_reminders").upsert(
       {
         employee_id: handler.employeeId,
         period_year: year,
         period_month: month,
         profile_ids: handler.profiles.map((p) => p.id),
-        status: result.ok ? "sent" : "failed",
-        message: result.error || `Emailed ${handler.profiles.length} profile(s)`,
+        status: delivered ? "sent" : "failed",
+        message: delivered ? "Slack channel notified" : deliveryError || "Slack unavailable",
         sent_at: new Date().toISOString(),
       },
       { onConflict: "employee_id,period_year,period_month" }
     );
-
-    if (result.ok) sent += 1;
-    else errors.push(`${handler.email}: ${result.error || "send failed"}`);
   }
+
+  if (delivered) sent = 1;
+  else errors.push(deliveryError || "Slack post failed");
 
   return { sent, skipped, errors };
 }

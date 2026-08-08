@@ -99,31 +99,42 @@ export async function POST(req: NextRequest) {
     }
 
     if (!profile) {
-      // Auto-create a simple LinkedIn sales profile for this ZIP owner
-      const { data: created, error: createErr } = await supabase
+      // Check if a profile with this name already exists (assigned to someone else)
+      const { data: nameMatch } = await supabase
         .from("sales_profiles")
-        .insert({
-          name: ownerName,
-          employee_id: employee.id,
-          platform: "linkedin",
-          is_active: true,
-          created_by: employee.id,
-        })
         .select("id, name, employee_id, is_active")
-        .single();
+        .ilike("name", ownerName)
+        .eq("is_active", true)
+        .maybeSingle();
 
-      if (createErr || !created) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: createErr?.message || `Could not create profile for "${ownerName}"`,
-          },
-          { status: 500 }
-        );
+      if (nameMatch) {
+        // Profile exists but wasn't matched by ID — use it and enforce access
+        profile = nameMatch;
+        salesProfileId = nameMatch.id;
+      } else {
+        // truly new profile — auto-create assigned to uploader
+        const { data: created, error: createErr } = await supabase
+          .from("sales_profiles")
+          .insert({
+            name: ownerName,
+            employee_id: employee.id,
+            platform: "linkedin",
+            is_active: true,
+            created_by: employee.id,
+          })
+          .select("id, name, employee_id, is_active")
+          .single();
+
+        if (createErr || !created) {
+          return NextResponse.json(
+            { success: false, error: createErr?.message || `Could not create profile for "${ownerName}"` },
+            { status: 500 }
+          );
+        }
+        profile = created;
+        salesProfileId = created.id;
+        createdProfile = true;
       }
-      profile = created;
-      salesProfileId = created.id;
-      createdProfile = true;
     }
 
     if (!isAdmin && profile.employee_id && profile.employee_id !== employee.id) {
@@ -172,15 +183,6 @@ export async function POST(req: NextRequest) {
     const isPartial = detectPartialExport(datasetTypes);
     const displayName = ownerName || profile.name;
 
-    const storeResults = await storeAllData(
-      supabase,
-      importId,
-      handlerEmployeeId,
-      salesProfileId,
-      datasets,
-      displayName
-    );
-
     const invitations = datasets.find((d) => d.type === "invitations");
     const connections = datasets.find((d) => d.type === "connections");
     const messagesDs = datasets.find((d) => d.type === "messages");
@@ -197,6 +199,49 @@ export async function POST(req: NextRequest) {
       messages: parsedMsgs,
       isPartial,
     });
+
+    // Duplicate check: reject if ZIP data for same profile + same month already exists
+    if (periodRows.length > 0) {
+      let isDuplicate = false;
+      const existingPeriods: string[] = [];
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+      for (const row of periodRows) {
+        const { data: existing } = await supabase
+          .from("linkedin_profile_period_stats")
+          .select("period_year, period_month")
+          .eq("sales_profile_id", salesProfileId)
+          .eq("period_year", row.period_year)
+          .eq("period_month", row.period_month)
+          .maybeSingle();
+
+        if (existing) {
+          isDuplicate = true;
+          existingPeriods.push(`${monthNames[row.period_month - 1]} ${row.period_year}`);
+        }
+      }
+
+      if (isDuplicate) {
+        // Clean up the empty import record
+        await supabase.from("linkedin_imports").delete().eq("id", importId);
+        return NextResponse.json(
+          {
+            success: false,
+            error: `LinkedIn data already exists for "${profile.name}" for this period. Please upload a different month's export.`,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    const storeResults = await storeAllData(
+      supabase,
+      importId,
+      handlerEmployeeId,
+      salesProfileId,
+      datasets,
+      displayName
+    );
 
     if (periodRows.length > 0) {
       const upsertPayload = periodRows.map((row) => ({
@@ -246,6 +291,17 @@ export async function POST(req: NextRequest) {
     revalidatePath("/sales/linkedin");
     revalidatePath("/sales/linkedin/intelligence");
     revalidatePath("/sales/admin/profiles");
+
+    // Send PDF report to admin only if new period stats were added
+    if (periodRows.length > 0) {
+      try {
+        const { generateAndSendMonthlyReport } = await import("@/actions/monthly-report");
+        const reportResult = await generateAndSendMonthlyReport(true);
+        console.log("[upload] Auto-report:", reportResult.success ? "sent" : reportResult.error);
+      } catch (e) {
+        console.error("[upload] Auto-report failed:", e);
+      }
+    }
 
     return NextResponse.json({
       success: true,

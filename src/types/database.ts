@@ -55,6 +55,7 @@ export interface Employee {
   weekly_working_days: number | null;
   probation_end_date: string | null;
   currency: string | null;
+  slack_user_id: string | null;
   department?: Department;
   manager?: Pick<Employee, "id" | "full_name" | "email">;
   lead?: Pick<Employee, "id" | "full_name" | "email">;

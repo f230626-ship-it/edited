@@ -16,7 +16,13 @@ export async function POST(req: NextRequest) {
 async function handle(req: NextRequest) {
   const auth = req.headers.get("authorization");
   const secret = process.env.CRON_SECRET;
-  if (secret && auth !== `Bearer ${secret}`) {
+
+  if (!secret) {
+    console.error("[linkedin-export-reminder] CRON_SECRET env var is not set — rejecting request");
+    return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+  }
+
+  if (auth !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

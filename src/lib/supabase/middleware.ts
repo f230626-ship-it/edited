@@ -186,7 +186,11 @@ export async function updateSession(request: NextRequest) {
   const isPublicApiRoute =
     pathname === "/api/auth/test-brevo" ||
     pathname === "/api/test-email" ||
+    pathname === "/api/slack/events" ||
     pathname.startsWith("/api/cron/");
+
+  const isPublicPage =
+    pathname.startsWith("/linkedin-report-render/");
 
   if (!isOriginAllowed(request)) {
     applySecurityHeaders(supabaseResponse);
@@ -246,7 +250,7 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  if (!user && !isAuthPage && !isPublicApiRoute && pathname !== "/") {
+  if (!user && !isAuthPage && !isPublicApiRoute && !isPublicPage && pathname !== "/") {
     if (isApiRoute) {
       const unauthResponse = NextResponse.json(
         { code: "UNAUTHORIZED", message: "Authentication required" },

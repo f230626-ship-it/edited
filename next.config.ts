@@ -10,6 +10,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   transpilePackages: ["es-toolkit", "tiny-invariant"],
+  serverExternalPackages: ["@sparticuz/chromium", "@react-pdf/renderer"],
   turbopack: {
     root: ".",
   },

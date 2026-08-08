@@ -20,6 +20,7 @@ import {
   LineChart,
   ChevronRight,
   UsersRound,
+  MessageSquare,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { BrandLogo } from "@/components/ui/brand-logo";
@@ -84,7 +85,7 @@ const employeeNav: NavItem[] = [
     title: "My Performance", 
     href: "/performance", 
     icon: Star,
-    description: "Goals & reviews"
+    description: "Goals, reviews & standups"
   },
 ];
 
