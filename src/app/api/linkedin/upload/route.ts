@@ -114,6 +114,24 @@ export async function POST(req: NextRequest) {
     }
 
     if (!profile) {
+      // Check if a profile with this name already exists (prevents duplicates)
+      const { data: nameDuplicate } = await supabase
+        .from("sales_profiles")
+        .select("id, name, employee_id")
+        .ilike("name", ownerName)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (nameDuplicate) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `A profile named "${ownerName}" already exists (assigned to another employee). Please ask the admin to assign it to you.`,
+          },
+          { status: 409 }
+        );
+      }
+
       // truly new profile — auto-create assigned to uploader
       const { data: created, error: createErr } = await supabase
         .from("sales_profiles")
