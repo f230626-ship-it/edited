@@ -81,10 +81,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (!profile) {
-      const { data: existingProfiles } = await supabase
+      // Only search profiles assigned to the current employee (admins see all)
+      let profileQuery = supabase
         .from("sales_profiles")
         .select("id, name, employee_id, is_active, platform")
         .eq("is_active", true);
+
+      if (!isAdmin) {
+        profileQuery = profileQuery.eq("employee_id", employee.id);
+      }
+
+      const { data: existingProfiles } = await profileQuery;
 
       const linkedInProfiles = (existingProfiles || []).filter(
         (p) => !p.platform || p.platform === "linkedin"
@@ -98,59 +105,37 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!profile) {
-      // Check if a profile with this name already exists (assigned to someone else)
-      const { data: nameMatch } = await supabase
-        .from("sales_profiles")
-        .select("id, name, employee_id, is_active")
-        .ilike("name", ownerName)
-        .eq("is_active", true)
-        .maybeSingle();
-
-      if (nameMatch) {
-        // Profile exists but wasn't matched by ID — use it and enforce access
-        profile = nameMatch;
-        salesProfileId = nameMatch.id;
-      } else {
-        // truly new profile — auto-create assigned to uploader
-        const { data: created, error: createErr } = await supabase
-          .from("sales_profiles")
-          .insert({
-            name: ownerName,
-            employee_id: employee.id,
-            platform: "linkedin",
-            is_active: true,
-            created_by: employee.id,
-          })
-          .select("id, name, employee_id, is_active")
-          .single();
-
-        if (createErr || !created) {
-          return NextResponse.json(
-            { success: false, error: createErr?.message || `Could not create profile for "${ownerName}"` },
-            { status: 500 }
-          );
-        }
-        profile = created;
-        salesProfileId = created.id;
-        createdProfile = true;
-      }
-    }
-
-    if (!isAdmin && profile.employee_id && profile.employee_id !== employee.id) {
+    // Enforce ownership: non-admins can only upload for their own profiles
+    if (!isAdmin && profile && profile.employee_id && profile.employee_id !== employee.id) {
       return NextResponse.json(
         { success: false, error: "You can only upload exports for profiles assigned to you" },
         { status: 403 }
       );
     }
 
-    // If profile has no handler yet, assign the uploader
-    if (!profile.employee_id) {
-      await supabase
+    if (!profile) {
+      // truly new profile — auto-create assigned to uploader
+      const { data: created, error: createErr } = await supabase
         .from("sales_profiles")
-        .update({ employee_id: employee.id })
-        .eq("id", profile.id);
-      profile.employee_id = employee.id;
+        .insert({
+          name: ownerName,
+          employee_id: employee.id,
+          platform: "linkedin",
+          is_active: true,
+          created_by: employee.id,
+        })
+        .select("id, name, employee_id, is_active")
+        .single();
+
+      if (createErr || !created) {
+        return NextResponse.json(
+          { success: false, error: createErr?.message || `Could not create profile for "${ownerName}"` },
+          { status: 500 }
+        );
+      }
+      profile = created;
+      salesProfileId = created.id;
+      createdProfile = true;
     }
 
     const handlerEmployeeId = profile.employee_id || employee.id;
