@@ -44,7 +44,10 @@ import {
   Filter,
   Gauge,
   Sparkles,
+  Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
+import { deleteProject } from "@/actions/projects";
 import { ImportDialog } from "@/components/projects/import-dialog";
 import { ProjectSheetSyncControls } from "@/components/projects/project-sheet-sync";
 import { MetricStrip } from "@/components/projects/metric-strip";
@@ -324,10 +327,32 @@ export default function ProjectsClient({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"dashboard" | "list">("dashboard");
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   // Only pm_role='admin' can create projects (coordinators can edit but not create)
   const isAdmin = currentEmployee.pm_role === "admin" || currentEmployee.role === "admin";
   // Both admin and coordinator can edit/delete
   const isWritable = currentEmployee.pm_role === "admin" || currentEmployee.pm_role === "coordinator";
+
+  async function handleDeleteProject(projectId: string, projectName: string) {
+    const ok = window.confirm(
+      `Delete project "${projectName}" permanently? This cannot be undone.`
+    );
+    if (!ok) return;
+    setDeletingId(projectId);
+    try {
+      const result = await deleteProject(projectId);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Project deleted.");
+      router.refresh();
+    } catch {
+      toast.error("Failed to delete project.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   // --- Filtering & Search State ---
   const [search, setSearch] = useState("");
@@ -1848,8 +1873,12 @@ export default function ProjectsClient({
                       <TableHead className="font-semibold text-[10px] tracking-wider uppercase text-muted-foreground py-2.5 px-3 whitespace-nowrap w-[9%]">Resource</TableHead>
                       <TableHead className="font-semibold text-[10px] tracking-wider uppercase text-muted-foreground py-2.5 px-3 whitespace-nowrap w-[7%]">Profile</TableHead>
                       <TableHead className="font-semibold text-[10px] tracking-wider uppercase text-muted-foreground py-2.5 px-3 whitespace-nowrap w-[6%]">BD</TableHead>
-                      {/* Last col: extra right padding for edge clearance */}
-                      <TableHead className="font-semibold text-[10px] tracking-wider uppercase text-muted-foreground py-2.5 pl-3 pr-4 whitespace-nowrap w-[7%]">End</TableHead>
+                      <TableHead className="font-semibold text-[10px] tracking-wider uppercase text-muted-foreground py-2.5 pl-3 pr-2 whitespace-nowrap w-[7%]">End</TableHead>
+                      {isAdmin && (
+                        <TableHead className="font-semibold text-[10px] tracking-wider uppercase text-muted-foreground py-2.5 pr-4 whitespace-nowrap w-[48px]">
+                          <span className="sr-only">Actions</span>
+                        </TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1905,7 +1934,7 @@ export default function ProjectsClient({
                           >
                             {p.assigned_bd_label || p.bd?.full_name?.split(" ")[0] || "—"}
                           </TableCell>
-                          <TableCell className="py-2.5 pl-3 pr-4 text-xs tabular-nums text-muted-foreground whitespace-nowrap">
+                          <TableCell className="py-2.5 pl-3 pr-2 text-xs tabular-nums text-muted-foreground whitespace-nowrap">
                             {p.expected_delivery_date
                               ? new Date(p.expected_delivery_date + "T00:00:00").toLocaleDateString("en-US", {
                                   month: "short",
@@ -1913,11 +1942,26 @@ export default function ProjectsClient({
                                 })
                               : "—"}
                           </TableCell>
+                          {isAdmin && (
+                            <TableCell className="py-2.5 pr-4" onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                disabled={deletingId === p.id}
+                                title="Delete project"
+                                onClick={() => handleDeleteProject(p.id, p.name)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={13} className="h-40 text-center">
+                        <TableCell colSpan={isAdmin ? 14 : 13} className="h-40 text-center">
                           <div className="pm-empty-state">
                             <FolderOpen className="pm-empty-icon" />
                             <p className="text-sm font-medium text-muted-foreground">No projects found</p>

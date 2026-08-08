@@ -2,8 +2,9 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentEmployee, requireAuth } from "@/lib/auth";
+import { getCurrentEmployee, requireAuth, isBdEmployee } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import type { Employee } from "@/types/database";
 
 const PROJECT_WRITE_COLUMNS = [
   "name",
@@ -80,6 +81,89 @@ function canWriteProjects(employee: {
     employee.pm_role === "admin" ||
     employee.pm_role === "coordinator"
   );
+}
+
+function canDeleteProjects(employee: {
+  role: string;
+  pm_role: string | null;
+}): boolean {
+  return employee.role === "admin" || employee.pm_role === "admin";
+}
+
+const MY_PROJECTS_SELECT = `
+  id, name, client_name, status, progress_percentage, value, currency,
+  start_date, expected_delivery_date, bd_id, assigned_bd_label,
+  manager:employees!manager_id(full_name)
+`;
+
+/**
+ * Projects visible to a non-admin employee on their dashboard.
+ * - BD: only deals assigned to them (`bd_id`), plus label fallback when FK is null
+ * - Everyone else: only projects where they are a resource
+ */
+export async function fetchAssignedProjectsForEmployee(
+  employee: Pick<Employee, "id" | "full_name" | "designation" | "pm_role" | "role">
+) {
+  const admin = createAdminClient();
+
+  if (isBdEmployee(employee)) {
+    const byBdId = await admin
+      .from("projects")
+      .select(MY_PROJECTS_SELECT)
+      .eq("bd_id", employee.id)
+      .order("created_at", { ascending: false });
+
+    if (byBdId.error) {
+      console.error("[MY_PROJECTS] BD query error:", byBdId.error.message);
+    }
+
+    const map = new Map<string, NonNullable<typeof byBdId.data>[number]>();
+    for (const p of byBdId.data ?? []) map.set(p.id, p);
+
+    // Sheet sync can leave bd_id null while still storing the BD name on the label
+    const name = (employee.full_name || "").trim();
+    if (name.length >= 3) {
+      const byLabel = await admin
+        .from("projects")
+        .select(MY_PROJECTS_SELECT)
+        .is("bd_id", null)
+        .ilike("assigned_bd_label", `%${name}%`)
+        .order("created_at", { ascending: false });
+
+      if (byLabel.error) {
+        console.error("[MY_PROJECTS] BD label query error:", byLabel.error.message);
+      }
+      for (const p of byLabel.data ?? []) {
+        if (!map.has(p.id)) map.set(p.id, p);
+      }
+    }
+
+    return Array.from(map.values());
+  }
+
+  const { data: resourceRows, error: resourceError } = await admin
+    .from("project_resources")
+    .select("project_id")
+    .eq("employee_id", employee.id);
+
+  if (resourceError) {
+    console.error("[MY_PROJECTS] Resource query error:", resourceError.message);
+    return [];
+  }
+  if (!resourceRows?.length) return [];
+
+  const projectIds = [...new Set(resourceRows.map((r) => r.project_id))];
+  const { data, error } = await admin
+    .from("projects")
+    .select(MY_PROJECTS_SELECT)
+    .in("id", projectIds)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[MY_PROJECTS] Projects query error:", error.message);
+    return [];
+  }
+  return data ?? [];
 }
 
 function buildProjectPayload(formData: FormData): Record<string, unknown> {
@@ -221,6 +305,26 @@ export async function updateProject(id: string, formData: FormData) {
   revalidatePath("/projects");
   revalidatePath(`/projects/${id}`);
   return { project: data };
+}
+
+export async function deleteProject(id: string) {
+  const employee = await getCurrentEmployee();
+  if (!employee) return { error: "Not authenticated" };
+  if (!canDeleteProjects(employee)) {
+    return { error: "Only admins can delete projects" };
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("projects").delete().eq("id", id);
+
+  if (error) {
+    console.error("Error deleting project:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/projects");
+  revalidatePath("/dashboard");
+  return { success: true };
 }
 
 export async function assignResource(
@@ -413,29 +517,12 @@ export async function updateProjectProgress(projectId: string, progress: number)
 
 export async function getMyProjects(employeeId: string) {
   const supabase = createAdminClient();
+  const { data: emp } = await supabase
+    .from("employees")
+    .select("id, full_name, designation, pm_role, role")
+    .eq("id", employeeId)
+    .maybeSingle();
 
-  const { data: resourceProjects } = await supabase
-    .from("project_resources")
-    .select("project_id")
-    .eq("employee_id", employeeId);
-
-  if (!resourceProjects || resourceProjects.length === 0) {
-    return [];
-  }
-
-  const projectIds = resourceProjects.map((r) => r.project_id);
-
-  const { data: projects } = await supabase
-    .from("projects")
-    .select(`
-      *,
-      manager:employees!manager_id(id, full_name, email),
-      resources:project_resources(
-        *, employee:employees(id, full_name, email)
-      )
-    `)
-    .in("id", projectIds)
-    .order("created_at", { ascending: false });
-
-  return projects ?? [];
+  if (!emp) return [];
+  return fetchAssignedProjectsForEmployee(emp);
 }

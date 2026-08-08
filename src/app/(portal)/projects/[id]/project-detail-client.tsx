@@ -35,7 +35,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { ResourceAssignmentDialog } from "../resource-assignment-dialog";
-import { removeResource, updateProjectProgress } from "@/actions/projects";
+import { removeResource, updateProjectProgress, deleteProject } from "@/actions/projects";
 import type { Project, Employee, ProjectResource } from "@/types/database";
 
 type ProjectWithRelations = Project & {
@@ -100,6 +100,7 @@ export default function ProjectDetailClient({
   const [editingProgress, setEditingProgress] = useState(false);
   const [progressValue, setProgressValue] = useState(project.progress_percentage ?? 0);
   const [savingProgress, setSavingProgress] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const StatusIcon = STATUS_ICONS[project.status] || AlertCircle;
   const totalAllocation = project.resources.reduce((sum, r) => sum + r.allocation_percentage, 0);
@@ -119,6 +120,28 @@ export default function ProjectDetailClient({
       }
       setRemovingId(null);
     });
+  }
+
+  async function handleDeleteProject() {
+    const ok = window.confirm(
+      `Delete project "${project.name}" permanently? This cannot be undone.`
+    );
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      const result = await deleteProject(project.id);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Project deleted.");
+      router.push("/projects");
+      router.refresh();
+    } catch {
+      toast.error("Failed to delete project.");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   async function handleSaveProgress() {
@@ -174,12 +197,29 @@ export default function ProjectDetailClient({
             </div>
           </div>
         </div>
-        <Link
-          href={`/projects/${project.id}/edit`}
-          className="pm-btn-outline inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-border/60 hover:bg-muted transition-colors"
-        >
-          <Edit className="h-3.5 w-3.5" /> Edit Project
-        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          {canEdit && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+              disabled={isPending || deleting}
+              onClick={handleDeleteProject}
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+              {deleting ? "Deleting…" : "Delete"}
+            </Button>
+          )}
+          {canEdit && (
+            <Link
+              href={`/projects/${project.id}/edit`}
+              className="pm-btn-outline inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg border border-border/60 hover:bg-muted transition-colors"
+            >
+              <Edit className="h-3.5 w-3.5" /> Edit Project
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Progress */}

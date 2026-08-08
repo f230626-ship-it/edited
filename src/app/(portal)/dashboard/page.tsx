@@ -15,30 +15,17 @@ import { DashboardClient } from "@/components/dashboard/dashboard-client";
 import { MyProjects } from "@/components/dashboard/my-projects";
 import { DashboardTrendChart } from "@/components/dashboard/dashboard-trend-chart";
 import { getDashboardAnalyticsData } from "@/actions/dashboard";
+import { fetchAssignedProjectsForEmployee } from "@/actions/projects";
 
 export default async function DashboardPage() {
   const employee = await requireAuth();
   const supabase = createAdminClient();
-  const adminSupabase = createAdminClient();
 
-  let myProjects: any[] = [];
+  let myProjects: Awaited<ReturnType<typeof fetchAssignedProjectsForEmployee>> = [];
   const isAdmin = employee.role === "admin" || employee.pm_role === "admin";
   if (!isAdmin) {
     try {
-      const { data: resourceRows } = await adminSupabase
-        .from("project_resources")
-        .select("project_id")
-        .eq("employee_id", employee.id);
-
-      if (resourceRows && resourceRows.length > 0) {
-        const projectIds = resourceRows.map((r) => r.project_id);
-        const { data } = await adminSupabase
-          .from("projects")
-          .select("id, name, client_name, status, progress_percentage, value, currency, start_date, expected_delivery_date, manager:employees!manager_id(full_name)")
-          .in("id", projectIds)
-          .order("created_at", { ascending: false });
-        myProjects = data ?? [];
-      }
+      myProjects = await fetchAssignedProjectsForEmployee(employee);
     } catch (e) {
       console.error("[MY_PROJECTS] Error:", e);
     }

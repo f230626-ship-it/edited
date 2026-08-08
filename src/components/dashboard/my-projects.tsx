@@ -85,6 +85,9 @@ export function MyProjects({ projects }: MyProjectsProps) {
         <CardContent className="py-12 text-center">
           <Briefcase className="h-10 w-10 mx-auto mb-3 text-violet-400 opacity-40" />
           <p className="text-sm font-medium text-muted-foreground">No projects assigned to you yet.</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Only projects where you are the assigned BD (or team resource) appear here.
+          </p>
         </CardContent>
       </Card>
     );
