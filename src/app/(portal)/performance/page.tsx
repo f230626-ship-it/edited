@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { PerformanceCharts } from "@/components/performance/performance-charts";
 import { RefreshButton } from "@/components/performance/refresh-button";
-import { StandupPerformanceSection } from "@/components/standup/standup-performance-section";
 
 export default async function PerformancePage() {
   const employee = await requireAuth();
@@ -194,8 +193,6 @@ export default async function PerformancePage() {
       </div>
 
       {/* ── Performance Charts ────────────────────────────────── */}
-      <StandupPerformanceSection />
-
       <PerformanceCharts goals={goals ?? []} reviews={reviews ?? []} salesLogs={salesLogs ?? []} />
 
       {/* ── Goals & Reviews ───────────────────────────────────── */}

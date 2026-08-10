@@ -55,7 +55,6 @@ export interface Employee {
   weekly_working_days: number | null;
   probation_end_date: string | null;
   currency: string | null;
-  slack_user_id?: string | null;
   department?: Department;
   manager?: Pick<Employee, "id" | "full_name" | "email">;
   lead?: Pick<Employee, "id" | "full_name" | "email">;
@@ -767,35 +766,6 @@ export interface PayrollAuditLog {
   previous_value: Record<string, unknown> | null;
   new_value: Record<string, unknown> | null;
   ip_address: string | null;
-  created_at: string;
-}
-
-export interface StandupEntryRow {
-  id: string;
-  employee_id: string | null;
-  slack_user_id: string | null;
-  slack_message_ts: string | null;
-  channel_id: string | null;
-  raw_text: string;
-  completed: string[];
-  blockers: string[];
-  in_progress: string[];
-  performance_score: number;
-  parsed_at: string | null;
-  created_at: string;
-}
-
-export interface PerformanceScoreRow {
-  id: string;
-  employee_id: string;
-  week_start: string;
-  week_end: string;
-  total_standups: number;
-  total_tasks_completed: number;
-  total_blockers: number;
-  avg_score: number;
-  consistency_pct: number;
-  trend: "up" | "down" | "stable" | string;
   created_at: string;
 }
 

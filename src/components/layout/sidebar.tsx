@@ -85,7 +85,7 @@ const employeeNav: NavItem[] = [
     title: "My Performance", 
     href: "/performance", 
     icon: Star,
-    description: "Goals, reviews & standups"
+    description: "Goals & reviews"
   },
 ];
 
