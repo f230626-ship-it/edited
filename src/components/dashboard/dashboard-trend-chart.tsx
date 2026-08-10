@@ -93,6 +93,11 @@ export function DashboardTrendChart({ initialData }: DashboardTrendChartProps) {
   const [activeMetric, setActiveMetric] = useState<string>(deptConfig.metricOrder[0]);
   const [data, setData] = useState<DashboardAnalyticsResponse | undefined>(initialData);
   const [isPending, startTransition] = useTransition();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Reset active metric if the user role/initialData config changes
   useEffect(() => {
@@ -130,6 +135,14 @@ export function DashboardTrendChart({ initialData }: DashboardTrendChartProps) {
   const formattedTotal = currentMetricConfig.prefix
     ? `${currentMetricConfig.prefix}${totalValue.toLocaleString()}`
     : `${totalValue.toLocaleString()}${currentMetricConfig.suffix || ""}`;
+
+  if (!mounted) {
+    return (
+      <Card className="glass-card-glow-violet border-none overflow-hidden pt-0 transition-all duration-300 w-full min-w-0 h-[380px] flex items-center justify-center">
+        <div className="text-muted-foreground/45 text-xs">Loading chart...</div>
+      </Card>
+    );
+  }
 
   return (
     <Card className="glass-card-glow-violet border-none overflow-hidden pt-0 transition-all duration-300 w-full min-w-0">

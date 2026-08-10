@@ -15,6 +15,7 @@ import { classifyMessagesByConversation } from "@/lib/linkedin/period-rollup";
 import {
   isLastWorkingDayOfMonth,
   isOnOrAfterLastWorkingDayOfMonth,
+  isOnOrAfterLastFridayOfMonth,
   currentKarachiYearMonth,
 } from "@/lib/linkedin/reminder-schedule";
 import { postSlackMessage, buildReminderBlocks } from "@/lib/slack";
@@ -651,14 +652,35 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
   errors: string[];
   reason?: string;
 }> {
-  // Persist reminders from last working day onward until all profiles upload
-  if (!force && !isOnOrAfterLastWorkingDayOfMonth(new Date())) {
-    return { sent: 0, skipped: 0, errors: [], reason: "Not yet last working day of month" };
+  // Send reminders on or after the last Friday / last working day of the month until all profiles upload
+  if (!force && !isOnOrAfterLastFridayOfMonth(new Date()) && !isOnOrAfterLastWorkingDayOfMonth(new Date())) {
+    return { sent: 0, skipped: 0, errors: [], reason: "Not yet last Friday of month" };
   }
 
   const { year, month } = currentKarachiYearMonth(new Date());
   const supabase = createAdminClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://hrms.mindvista.io";
+
+  // Check if a Slack reminder has already been sent for this month (unless forced)
+  if (!force) {
+    const { data: existingReminder } = await supabase
+      .from("linkedin_export_reminders")
+      .select("id, status")
+      .eq("period_year", year)
+      .eq("period_month", month)
+      .eq("status", "sent")
+      .limit(1)
+      .maybeSingle();
+
+    if (existingReminder) {
+      return {
+        sent: 0,
+        skipped: 0,
+        errors: [],
+        reason: "Slack reminder already sent for this month",
+      };
+    }
+  }
 
   // Slack is the primary channel; email env is optional (email sends currently skipped).
   const hasSlack =

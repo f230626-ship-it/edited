@@ -308,7 +308,14 @@ export async function POST(req: NextRequest) {
     revalidatePath("/sales/linkedin/intelligence");
     revalidatePath("/sales/admin/profiles");
 
-    // Monthly PDF is sent by cron (/api/cron/monthly-report) or admin action — not on every ZIP.
+    // Trigger automated monthly PDF report email to admin upon successful upload
+    let reportResult = null;
+    try {
+      const { runMonthlyReportGeneration } = await import("@/lib/linkedin/monthly-report");
+      reportResult = await runMonthlyReportGeneration(true);
+    } catch (reportErr) {
+      console.error("[LinkedIn API upload] Failed to send report to admin:", reportErr);
+    }
 
     return NextResponse.json({
       success: true,
@@ -321,7 +328,7 @@ export async function POST(req: NextRequest) {
       months: periodRows.length,
       datasets: datasets.map((d) => ({ type: d.type, rows: d.rowCount })),
       storeResults,
-      report: null,
+      report: reportResult,
     });
   } catch (err: unknown) {
     console.error("[LinkedIn API upload] Error:", err);

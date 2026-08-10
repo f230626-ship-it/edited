@@ -77,3 +77,40 @@ export function isOnOrAfterLastWorkingDayOfMonth(date = new Date()): boolean {
   }
   return false;
 }
+
+/** True if `date` (in Karachi) is the last Friday of its calendar month. */
+export function isLastFridayOfMonth(date = new Date()): boolean {
+  const { year, month, day, weekday } = karachiParts(date);
+  if (weekday !== 5) return false;
+
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  for (let d = daysInMonth; d >= 1; d--) {
+    const probe = new Date(
+      `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}T12:00:00+05:00`
+    );
+    const { weekday: pWeekday } = karachiParts(probe);
+    if (pWeekday === 5) {
+      return d === day;
+    }
+  }
+  return false;
+}
+
+/**
+ * True if `date` (in Karachi) is ON or AFTER the last Friday of the
+ * current calendar month — and still within that same month.
+ */
+export function isOnOrAfterLastFridayOfMonth(date = new Date()): boolean {
+  const { year, month, day } = karachiParts(date);
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  for (let d = daysInMonth; d >= 1; d--) {
+    const probe = new Date(
+      `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}T12:00:00+05:00`
+    );
+    const { weekday: pWeekday } = karachiParts(probe);
+    if (pWeekday === 5) {
+      return day >= d;
+    }
+  }
+  return false;
+}

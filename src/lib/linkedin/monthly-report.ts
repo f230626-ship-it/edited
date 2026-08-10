@@ -36,12 +36,16 @@ async function collectMonthStats(
     .eq("is_active", true);
 
   if (profilesError) throw new Error(`Failed to load profiles: ${profilesError.message}`);
-  if (!allProfiles || allProfiles.length === 0) return null;
+  if (!allProfiles || allProfiles.length === 0) {
+    return { profiles: [], uploadedCount: 0, totalActiveCount: 0, allUploaded: false };
+  }
 
   const linkedInProfiles = allProfiles.filter(
     (p) => !p.platform || p.platform === "linkedin"
   );
-  if (linkedInProfiles.length === 0) return null;
+  if (linkedInProfiles.length === 0) {
+    return { profiles: [], uploadedCount: 0, totalActiveCount: 0, allUploaded: false };
+  }
 
   const { data: stats } = await supabase
     .from("linkedin_profile_period_stats")
@@ -52,12 +56,16 @@ async function collectMonthStats(
     .eq("period_month", month);
 
   const statsMap = new Map((stats || []).map((s) => [s.sales_profile_id, s]));
+  const uploadedCount = linkedInProfiles.filter((p) => statsMap.has(p.id)).length;
+  const totalActiveCount = linkedInProfiles.length;
+  const allUploaded = totalActiveCount > 0 && uploadedCount === totalActiveCount;
 
-  return linkedInProfiles.map((p) => {
+  const profiles = linkedInProfiles.map((p) => {
     const s = statsMap.get(p.id);
     return {
       profileId: p.id,
       profileName: p.name,
+      hasUploaded: statsMap.has(p.id),
       invitesSent: s?.invites_sent ?? 0,
       connectionsMade: s?.connections_made ?? 0,
       acceptanceRate: Number(s?.acceptance_rate ?? 0),
@@ -67,10 +75,12 @@ async function collectMonthStats(
       replyRate: Number(s?.reply_rate ?? 0),
     };
   });
+
+  return { profiles, uploadedCount, totalActiveCount, allUploaded };
 }
 
 async function generateScreenshots(
-  profiles: NonNullable<Awaited<ReturnType<typeof collectMonthStats>>>,
+  profiles: Awaited<ReturnType<typeof collectMonthStats>>["profiles"],
   monthLabel: string
 ): Promise<Map<string, string>> {
   const result = new Map<string, string>();
@@ -131,7 +141,7 @@ async function generateScreenshots(
 }
 
 async function buildPdf(
-  profiles: NonNullable<Awaited<ReturnType<typeof collectMonthStats>>>,
+  profiles: Awaited<ReturnType<typeof collectMonthStats>>["profiles"],
   screenshots: Map<string, string>,
   month: string,
   generatedAt: string
@@ -219,10 +229,10 @@ export async function runMonthlyReportGeneration(
     }
   }
 
-  let stats = await collectMonthStats(supabase, year, month);
+  let monthData = await collectMonthStats(supabase, year, month);
   const hasData =
-    stats &&
-    stats.some((s) => s.invitesSent > 0 || s.connectionsMade > 0 || s.messagesSent > 0);
+    monthData &&
+    monthData.profiles.some((s) => s.invitesSent > 0 || s.connectionsMade > 0 || s.messagesSent > 0);
   if (!hasData) {
     const { data: latestStat } = await supabase
       .from("linkedin_profile_period_stats")
@@ -236,8 +246,21 @@ export async function runMonthlyReportGeneration(
       year = latestStat.period_year;
       month = latestStat.period_month;
       label = monthName(year, month);
-      stats = await collectMonthStats(supabase, year, month);
+      monthData = await collectMonthStats(supabase, year, month);
     }
+  }
+
+  const { profiles, uploadedCount, totalActiveCount, allUploaded } = monthData;
+
+  // Enforce requirement: Send report to admin ONLY when ALL active profiles have uploaded current month data
+  if (!force && !allUploaded) {
+    return {
+      success: true,
+      month: label,
+      profilesIncluded: uploadedCount,
+      alreadySent: false,
+      error: undefined,
+    };
   }
 
   await supabase.from("monthly_report_log").upsert(
@@ -252,7 +275,7 @@ export async function runMonthlyReportGeneration(
   );
 
   try {
-    if (!stats || stats.length === 0) {
+    if (!profiles || profiles.length === 0) {
       await supabase
         .from("monthly_report_log")
         .update({ status: "skipped", error: "No stats available for this month" })
@@ -267,14 +290,14 @@ export async function runMonthlyReportGeneration(
       };
     }
 
-    const screenshots = await generateScreenshots(stats, label);
-    const pdfBuffer = await buildPdf(stats, screenshots, label, new Date().toISOString());
+    const screenshots = await generateScreenshots(profiles, label);
+    const pdfBuffer = await buildPdf(profiles, screenshots, label, new Date().toISOString());
     const pdfBase64 = pdfBuffer.toString("base64");
 
-    const totalInvites = stats.reduce((s, p) => s + p.invitesSent, 0);
-    const totalConns = stats.reduce((s, p) => s + p.connectionsMade, 0);
-    const totalMsgs = stats.reduce((s, p) => s + p.messagesSent, 0);
-    const totalReplies = stats.reduce((s, p) => s + p.repliesReceived, 0);
+    const totalInvites = profiles.reduce((s, p) => s + p.invitesSent, 0);
+    const totalConns = profiles.reduce((s, p) => s + p.connectionsMade, 0);
+    const totalMsgs = profiles.reduce((s, p) => s + p.messagesSent, 0);
+    const totalReplies = profiles.reduce((s, p) => s + p.repliesReceived, 0);
     const overallAcceptance =
       totalInvites > 0 ? ((totalConns / totalInvites) * 100).toFixed(1) : "0.0";
     const overallReply =
@@ -287,7 +310,7 @@ export async function runMonthlyReportGeneration(
       ``,
       `Please find the LinkedIn outreach report for ${label} attached.`,
       ``,
-      `SUMMARY (${stats.length} profile${stats.length !== 1 ? "s" : ""})`,
+      `SUMMARY (${profiles.length} profile${profiles.length !== 1 ? "s" : ""})`,
       `Invites Sent:     ${totalInvites}`,
       `Connections Made: ${totalConns}`,
       `Acceptance Rate:  ${overallAcceptance}%`,
@@ -308,7 +331,7 @@ export async function runMonthlyReportGeneration(
           <p>Hi Admin,</p>
           <p>The LinkedIn outreach report for <strong>${label}</strong> is ready. Full stats are in the attached PDF.</p>
           <div style="background:#0f172a;border-radius:8px;padding:16px;margin:16px 0">
-            <p style="color:#94a3b8;font-size:12px;margin:0 0 10px;font-weight:600">COMBINED SUMMARY — ${stats.length} PROFILE${stats.length !== 1 ? "S" : ""}</p>
+            <p style="color:#94a3b8;font-size:12px;margin:0 0 10px;font-weight:600">COMBINED SUMMARY — ${profiles.length} PROFILE${profiles.length !== 1 ? "S" : ""}</p>
             <table style="width:100%;border-collapse:collapse;font-size:13px">
               <tr><td style="color:#94a3b8;padding:4px 0">Invites Sent</td><td style="color:#f59e0b;font-weight:700;text-align:right">${totalInvites}</td></tr>
               <tr><td style="color:#94a3b8;padding:4px 0">Connections Made</td><td style="color:#0d9488;font-weight:700;text-align:right">${totalConns}</td></tr>
@@ -345,7 +368,7 @@ export async function runMonthlyReportGeneration(
       .from("monthly_report_log")
       .update({
         status: "sent",
-        profiles_count: stats.length,
+        profiles_count: profiles.length,
         report_sent_at: new Date().toISOString(),
       })
       .eq("period_year", year)
@@ -354,7 +377,7 @@ export async function runMonthlyReportGeneration(
     return {
       success: true,
       month: label,
-      profilesIncluded: stats.length,
+      profilesIncluded: profiles.length,
       alreadySent: false,
     };
   } catch (err) {

@@ -22,12 +22,77 @@ Rules:
 
 Return ONLY the JSON object, nothing else.`;
 
-function fallbackParse(rawText: string, score = 10): ParsedStandup {
+function fallbackParse(rawText: string): ParsedStandup {
+  const completed: string[] = [];
+  const blockers: string[] = [];
+  const in_progress: string[] = [];
+
+  const lines = rawText.split("\n").map(l => l.trim()).filter(Boolean);
+  let currentSection: "completed" | "blockers" | "in_progress" | null = null;
+
+  for (const line of lines) {
+    const cleanLine = line.replace(/^[-*•\s]+/, "").trim();
+    const lowerLine = line.toLowerCase();
+
+    // Heuristics for single-line structures (e.g., "- Completed: task 1, task 2")
+    if (/^[-*•]?\s*(completed|done|finished):/i.test(line)) {
+      const content = cleanLine.replace(/^(completed|done|finished):/i, "").trim();
+      if (content && content.toLowerCase() !== "none" && content.toLowerCase() !== "none." && content.toLowerCase() !== "none today") {
+        completed.push(...content.split(/[,;]/).map(s => s.trim()).filter(Boolean));
+      }
+      currentSection = "completed";
+      continue;
+    }
+
+    if (/^[-*•]?\s*(blocker|blocked|issue|blockers):/i.test(line)) {
+      const content = cleanLine.replace(/^(blocker|blocked|issue|blockers):/i, "").trim();
+      if (content && content.toLowerCase() !== "none" && content.toLowerCase() !== "none." && content.toLowerCase() !== "none today") {
+        blockers.push(...content.split(/[,;]/).map(s => s.trim()).filter(Boolean));
+      }
+      currentSection = "blockers";
+      continue;
+    }
+
+    if (/^[-*•]?\s*(in_progress|in-progress|working|progress|planned|working on):/i.test(line)) {
+      const content = cleanLine.replace(/^(in_progress|in-progress|working|progress|planned|working on):/i, "").trim();
+      if (content && content.toLowerCase() !== "none" && content.toLowerCase() !== "none." && content.toLowerCase() !== "none today") {
+        in_progress.push(...content.split(/[,;]/).map(s => s.trim()).filter(Boolean));
+      }
+      currentSection = "in_progress";
+      continue;
+    }
+
+    // Heuristics for multi-line block sections
+    if (lowerLine.startsWith("completed") || lowerLine.startsWith("done") || lowerLine.startsWith("finished")) {
+      currentSection = "completed";
+      continue;
+    } else if (lowerLine.startsWith("blocker") || lowerLine.startsWith("blocked") || lowerLine.startsWith("issue")) {
+      currentSection = "blockers";
+      continue;
+    } else if (lowerLine.startsWith("currently working") || lowerLine.startsWith("in progress") || lowerLine.startsWith("planned") || lowerLine.startsWith("working on")) {
+      currentSection = "in_progress";
+      continue;
+    }
+
+    // Bullet point under a section header
+    if (line.startsWith("-") || line.startsWith("*") || line.startsWith("•")) {
+      if (cleanLine && cleanLine.toLowerCase() !== "none" && cleanLine.toLowerCase() !== "none." && cleanLine.toLowerCase() !== "none today") {
+        if (currentSection === "completed") completed.push(cleanLine);
+        else if (currentSection === "blockers") blockers.push(cleanLine);
+        else if (currentSection === "in_progress") in_progress.push(cleanLine);
+      }
+    }
+  }
+
+  // Calculate score
+  const computedScore = completed.length * 15 + in_progress.length * 10 - blockers.length * 10 + 10;
+  const score = Math.min(100, Math.max(0, computedScore === 10 ? 10 : computedScore));
+
   return {
-    completed: [],
-    blockers: [],
-    in_progress: [],
-    summary: rawText.slice(0, 100),
+    completed,
+    blockers,
+    in_progress,
+    summary: rawText.split("\n").find(l => l.trim().length > 10)?.trim() || rawText.slice(0, 100),
     score,
   };
 }
