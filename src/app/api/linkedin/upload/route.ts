@@ -81,17 +81,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (!profile) {
-      // Non-admins may only auto-match against their own profiles
-      let profileQuery = supabase
+      const { data: existingProfiles } = await supabase
         .from("sales_profiles")
         .select("id, name, employee_id, is_active, platform")
         .eq("is_active", true);
-
-      if (!isAdmin) {
-        profileQuery = profileQuery.eq("employee_id", employee.id);
-      }
-
-      const { data: existingProfiles } = await profileQuery;
 
       const linkedInProfiles = (existingProfiles || []).filter(
         (p) => !p.platform || p.platform === "linkedin"
@@ -105,37 +98,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Enforce ownership before create / mutate
-    if (!isAdmin && profile && profile.employee_id && profile.employee_id !== employee.id) {
-      return NextResponse.json(
-        { success: false, error: "You can only upload exports for profiles assigned to you" },
-        { status: 403 }
-      );
-    }
-
     if (!profile) {
-      // Reject create when an active profile with this name already exists
-      const { data: nameDuplicate } = await supabase
-        .from("sales_profiles")
-        .select("id, name, employee_id")
-        .ilike("name", ownerName)
-        .eq("is_active", true)
-        .maybeSingle();
-
-      if (nameDuplicate) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `A profile named "${ownerName}" already exists${
-              nameDuplicate.employee_id && nameDuplicate.employee_id !== employee.id
-                ? " (assigned to another employee). Please ask an admin to assign it to you."
-                : ". Select it from the upload dialog or ask an admin for help."
-            }`,
-          },
-          { status: 409 }
-        );
-      }
-
+      // Auto-create a simple LinkedIn sales profile for this ZIP owner
       const { data: created, error: createErr } = await supabase
         .from("sales_profiles")
         .insert({
@@ -162,6 +126,13 @@ export async function POST(req: NextRequest) {
       createdProfile = true;
     }
 
+    if (!isAdmin && profile.employee_id && profile.employee_id !== employee.id) {
+      return NextResponse.json(
+        { success: false, error: "You can only upload exports for profiles assigned to you" },
+        { status: 403 }
+      );
+    }
+
     // If profile has no handler yet, assign the uploader
     if (!profile.employee_id) {
       await supabase
@@ -172,60 +143,6 @@ export async function POST(req: NextRequest) {
     }
 
     const handlerEmployeeId = profile.employee_id || employee.id;
-
-    const datasetTypes = datasets.map((d) => d.type);
-    const isPartial = detectPartialExport(datasetTypes);
-    const displayName = ownerName || profile.name;
-
-    const invitations = datasets.find((d) => d.type === "invitations");
-    const connections = datasets.find((d) => d.type === "connections");
-    const messagesDs = datasets.find((d) => d.type === "messages");
-
-    const parsedInvites = invitations ? parseInvitationsData(invitations.data) : [];
-    const parsedConns = connections ? parseConnectionsData(connections.data) : [];
-    const parsedMsgs = messagesDs
-      ? parseMessagesData(messagesDs.data, [displayName, profile.name])
-      : [];
-
-    const periodRows = buildMonthlyPeriodStats({
-      invitations: parsedInvites,
-      connections: parsedConns,
-      messages: parsedMsgs,
-      isPartial,
-    });
-
-    // Duplicate check BEFORE deleting prior imports (avoids wiping data on 409)
-    if (periodRows.length > 0) {
-      const existingPeriods: string[] = [];
-      const monthNames = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-      ];
-
-      for (const row of periodRows) {
-        const { data: existing } = await supabase
-          .from("linkedin_profile_period_stats")
-          .select("period_year, period_month")
-          .eq("sales_profile_id", salesProfileId)
-          .eq("period_year", row.period_year)
-          .eq("period_month", row.period_month)
-          .maybeSingle();
-
-        if (existing) {
-          existingPeriods.push(`${monthNames[row.period_month - 1]} ${row.period_year}`);
-        }
-      }
-
-      if (existingPeriods.length > 0) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Duplicate rejected: "${profile.name}" already has data for ${existingPeriods.join(", ")}. Upload a ZIP with different months only.`,
-          },
-          { status: 409 }
-        );
-      }
-    }
 
     // Replace prior imports for this sales profile
     await supabase.from("linkedin_imports").delete().eq("sales_profile_id", salesProfileId);
@@ -251,6 +168,9 @@ export async function POST(req: NextRequest) {
     }
 
     const importId = importRecord.id;
+    const datasetTypes = datasets.map((d) => d.type);
+    const isPartial = detectPartialExport(datasetTypes);
+    const displayName = ownerName || profile.name;
 
     const storeResults = await storeAllData(
       supabase,
@@ -260,6 +180,23 @@ export async function POST(req: NextRequest) {
       datasets,
       displayName
     );
+
+    const invitations = datasets.find((d) => d.type === "invitations");
+    const connections = datasets.find((d) => d.type === "connections");
+    const messagesDs = datasets.find((d) => d.type === "messages");
+
+    const parsedInvites = invitations ? parseInvitationsData(invitations.data) : [];
+    const parsedConns = connections ? parseConnectionsData(connections.data) : [];
+    const parsedMsgs = messagesDs
+      ? parseMessagesData(messagesDs.data, [displayName, profile.name])
+      : [];
+
+    const periodRows = buildMonthlyPeriodStats({
+      invitations: parsedInvites,
+      connections: parsedConns,
+      messages: parsedMsgs,
+      isPartial,
+    });
 
     if (periodRows.length > 0) {
       const upsertPayload = periodRows.map((row) => ({
@@ -492,7 +429,7 @@ async function storeAllData(
           break;
         }
         case "messages": {
-          const rows = parseMessagesData(dataset.data, [ownerName]);
+          const rows = parseMessagesData(dataset.data, [displayName, profile.name]);
           if (rows.length) {
             // Cap insert size for very large exports
             const chunkSize = 500;
