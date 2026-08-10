@@ -183,12 +183,16 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/auth/confirm");
 
+  const isSlackEventsRoute = pathname === "/api/slack/events";
+
   const isPublicApiRoute =
     pathname === "/api/auth/test-brevo" ||
     pathname === "/api/test-email" ||
+    isSlackEventsRoute ||
     pathname.startsWith("/api/cron/");
 
-  if (!isOriginAllowed(request)) {
+  // Slack Events API has no browser Origin; auth is via signing secret instead.
+  if (!isSlackEventsRoute && !isOriginAllowed(request)) {
     applySecurityHeaders(supabaseResponse);
     if (isApiRoute) {
       return NextResponse.json(
