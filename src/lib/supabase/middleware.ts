@@ -183,16 +183,16 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/auth/confirm");
 
-  const isSlackEventsRoute = pathname === "/api/slack/events";
-
   const isPublicApiRoute =
     pathname === "/api/auth/test-brevo" ||
     pathname === "/api/test-email" ||
-    pathname.startsWith("/api/cron/") ||
-    isSlackEventsRoute;
+    pathname === "/api/slack/events" ||
+    pathname.startsWith("/api/cron/");
 
-  // Slack Events API has no browser Origin; auth is via signing secret instead.
-  if (!isSlackEventsRoute && !isOriginAllowed(request)) {
+  const isPublicPage =
+    pathname.startsWith("/linkedin-report-render/");
+
+  if (!isOriginAllowed(request)) {
     applySecurityHeaders(supabaseResponse);
     if (isApiRoute) {
       return NextResponse.json(
@@ -250,7 +250,7 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  if (!user && !isAuthPage && !isPublicApiRoute && pathname !== "/") {
+  if (!user && !isAuthPage && !isPublicApiRoute && !isPublicPage && pathname !== "/") {
     if (isApiRoute) {
       const unauthResponse = NextResponse.json(
         { code: "UNAUTHORIZED", message: "Authentication required" },

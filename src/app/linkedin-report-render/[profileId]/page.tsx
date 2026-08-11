@@ -1,21 +1,20 @@
-import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getCurrentEmployee, isSalesOwner } from "@/lib/auth";
+import { notFound } from "next/navigation";
 import { ReportDashboard } from "./report-dashboard";
 
-/** Admin-only preview of a profile stat card (auth session required). */
+const REPORT_SECRET = process.env.CRON_SECRET;
+
 export default async function ReportRenderPage({
   params,
   searchParams,
 }: {
   params: Promise<{ profileId: string }>;
-  searchParams: Promise<{ month?: string; year?: string }>;
+  searchParams: Promise<{ secret?: string; month?: string; year?: string }>;
 }) {
-  const employee = await getCurrentEmployee();
-  if (!employee || !isSalesOwner(employee.role)) return notFound();
-
   const { profileId } = await params;
-  const { month: monthStr, year: yearStr } = await searchParams;
+  const { secret, month: monthStr, year: yearStr } = await searchParams;
+
+  if (!REPORT_SECRET || secret !== REPORT_SECRET) return notFound();
 
   const supabase = createAdminClient();
   const year = yearStr ? parseInt(yearStr) : new Date().getFullYear();
@@ -31,9 +30,7 @@ export default async function ReportRenderPage({
 
   const { data: stat } = await supabase
     .from("linkedin_profile_period_stats")
-    .select(
-      "invites_sent, connections_made, acceptance_rate, messages_sent, initial_messages, follow_ups_sent, replies_received, reply_rate"
-    )
+    .select("invites_sent, connections_made, acceptance_rate, messages_sent, initial_messages, follow_ups_sent, replies_received, reply_rate")
     .eq("sales_profile_id", profileId)
     .eq("period_year", year)
     .eq("period_month", month)
@@ -41,7 +38,7 @@ export default async function ReportRenderPage({
 
   const data = {
     profileName: profile.name,
-    month: `${["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][month - 1]} ${year}`,
+    month: `${["January","February","March","April","May","June","July","August","September","October","November","December"][month - 1]} ${year}`,
     invitesSent: stat?.invites_sent ?? 0,
     connectionsMade: stat?.connections_made ?? 0,
     acceptanceRate: Number(stat?.acceptance_rate ?? 0),

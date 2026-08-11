@@ -15,24 +15,7 @@ import {
   View,
   Image,
   StyleSheet,
-  Font,
 } from "@react-pdf/renderer";
-import { getInterBold, getInterRegular } from "./fonts";
-
-// Register Inter font from local woff files as base64 data URIs
-Font.register({
-  family: "Inter",
-  fonts: [
-    {
-      src: `data:font/woff;base64,${getInterRegular().toString("base64")}`,
-      fontWeight: 400,
-    },
-    {
-      src: `data:font/woff;base64,${getInterBold().toString("base64")}`,
-      fontWeight: 700,
-    },
-  ],
-});
 
 const C = {
   bg: "#0f172a",
@@ -53,7 +36,7 @@ const styles = StyleSheet.create({
   page: {
     backgroundColor: C.bg,
     padding: 40,
-    fontFamily: "Inter",
+    fontFamily: "Helvetica",
     color: C.white,
   },
   // Header
@@ -80,7 +63,7 @@ const styles = StyleSheet.create({
   tableCell: { flex: 1, fontSize: 9, color: C.white },
   tableHeaderCell: { flex: 1, fontSize: 8, fontWeight: 700, color: C.muted },
   // Stat card image
-  statCardPage: { backgroundColor: C.bg, padding: 40, fontFamily: "Inter", color: C.white },
+  statCardPage: { backgroundColor: C.bg, padding: 40, fontFamily: "Helvetica", color: C.white },
   statCardImage: { width: "100%", objectFit: "contain" },
   statCardLabel: { fontSize: 10, color: C.muted, marginBottom: 8, marginTop: 8 },
   // Footer

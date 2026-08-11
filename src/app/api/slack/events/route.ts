@@ -1,76 +1,89 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseStandup } from "@/lib/standup/gemini-parser";
+import { createHmac, timingSafeEqual } from "crypto";
 
-export const runtime = "nodejs";
+const STANDUP_CHANNELS = (process.env.STANDUP_CHANNELS || "").split(",").filter(Boolean);
+const SLACK_SIGNING_SECRET = process.env.SLACK_SIGNING_SECRET || "";
 
-function verifySlackSignature(
-  signingSecret: string,
-  signature: string | null,
-  timestamp: string | null,
-  rawBody: string
+function verifySlackRequest(
+  timestamp: string,
+  signature: string,
+  body: string
 ): boolean {
-  if (!signature || !timestamp) return false;
+  if (!SLACK_SIGNING_SECRET) {
+    console.warn("[Slack] SLACK_SIGNING_SECRET not set — skipping verification (INSECURE)");
+    return true;
+  }
 
-  const ts = Number(timestamp);
-  if (!Number.isFinite(ts)) return false;
+  const fiveMinAgo = Math.floor(Date.now() / 1000) - 60 * 5;
+  if (parseInt(timestamp) < fiveMinAgo) return false;
 
-  // Reject requests older than 5 minutes (replay protection)
-  const ageSec = Math.abs(Math.floor(Date.now() / 1000) - ts);
-  if (ageSec > 60 * 5) return false;
-
-  const base = `v0:${timestamp}:${rawBody}`;
-  const digest = createHmac("sha256", signingSecret).update(base).digest("hex");
-  const expected = `v0=${digest}`;
+  const baseString = `v0:${timestamp}:${body}`;
+  const hmac = createHmac("sha256", SLACK_SIGNING_SECRET)
+    .update(baseString)
+    .digest("hex");
+  const computed = `v0=${hmac}`;
 
   try {
-    const a = Buffer.from(expected);
-    const b = Buffer.from(signature);
-    return a.length === b.length && timingSafeEqual(a, b);
+    return timingSafeEqual(Buffer.from(computed), Buffer.from(signature));
   } catch {
     return false;
   }
 }
 
+async function resolveEmployee(supabase: ReturnType<typeof createAdminClient>, userId: string) {
+  let { data: employee } = await supabase
+    .from("employees")
+    .select("id, full_name")
+    .eq("slack_user_id", userId)
+    .single();
+
+  if (!employee) {
+    const SLACK_TOKEN = process.env.SLACK_BOT_TOKEN;
+    if (SLACK_TOKEN) {
+      try {
+        const userRes = await fetch(`https://slack.com/api/users.info?user=${userId}`, {
+          headers: { Authorization: `Bearer ${SLACK_TOKEN}` },
+        });
+        const userData = await userRes.json();
+        if (userData.ok && userData.user?.profile?.email) {
+          const email = userData.user.profile.email;
+          const { data: matchedEmployee } = await supabase
+            .from("employees")
+            .select("id, full_name")
+            .eq("email", email)
+            .single();
+          if (matchedEmployee) {
+            await supabase
+              .from("employees")
+              .update({ slack_user_id: userId })
+              .eq("id", matchedEmployee.id);
+            employee = matchedEmployee;
+            console.log(`[Slack] Auto-mapped ${matchedEmployee.full_name} to Slack user ${userId}`);
+          }
+        }
+      } catch (e) {
+        console.error("[Slack] Failed to resolve Slack user:", e);
+      }
+    }
+  }
+
+  return employee;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const signingSecret = process.env.SLACK_SIGNING_SECRET;
-    if (!signingSecret) {
-      console.error("[Slack events] SLACK_SIGNING_SECRET is not set");
-      return NextResponse.json({ error: "Misconfigured" }, { status: 500 });
-    }
-
-    const standupChannels = (process.env.STANDUP_CHANNELS || "")
-      .split(",")
-      .map((c) => c.trim())
-      .filter(Boolean);
-
-    if (standupChannels.length === 0) {
-      console.error("[Slack events] STANDUP_CHANNELS is empty — refusing events");
-      return NextResponse.json({ error: "Misconfigured" }, { status: 500 });
-    }
-
     const rawBody = await req.text();
-    const signature = req.headers.get("x-slack-signature");
-    const timestamp = req.headers.get("x-slack-request-timestamp");
+    const body = JSON.parse(rawBody);
 
-    if (!verifySlackSignature(signingSecret, signature, timestamp, rawBody)) {
+    const slackSignature = req.headers.get("x-slack-signature") || "";
+    const slackTimestamp = req.headers.get("x-slack-request-timestamp") || "0";
+
+    if (SLACK_SIGNING_SECRET && !verifySlackRequest(slackTimestamp, slackSignature, rawBody)) {
+      console.warn("[Slack] Invalid signature — rejected request");
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
-
-    const body = JSON.parse(rawBody) as {
-      type?: string;
-      challenge?: string;
-      event?: {
-        type?: string;
-        subtype?: string;
-        channel?: string;
-        user?: string;
-        text?: string;
-        ts?: string;
-      };
-    };
 
     if (body.type === "url_verification") {
       return NextResponse.json({ challenge: body.challenge });
@@ -81,7 +94,94 @@ export async function POST(req: NextRequest) {
     }
 
     const event = body.event;
-    if (!event || event.type !== "message" || event.subtype) {
+    if (!event || event.type !== "message") {
+      return NextResponse.json({ ok: true });
+    }
+
+    const supabase = createAdminClient();
+
+    // ── message_deleted ──────────────────────────────────────────────────
+    if (event.subtype === "message_deleted") {
+      const deletedTs = event.deleted_ts || event.ts;
+      const { error } = await supabase
+        .from("standup_entries")
+        .delete()
+        .eq("slack_message_ts", deletedTs);
+
+      if (!error) {
+        console.log(`[Slack] Deleted standup entry for message ${deletedTs}`);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    // ── message_changed (edited) ─────────────────────────────────────────
+    if (event.subtype === "message_changed") {
+      const message = event.message;
+      if (!message || message.subtype || message.bot_id) {
+        return NextResponse.json({ ok: true });
+      }
+
+      const editedTs = message.ts;
+      const newText = message.text;
+      const editedBy = message.edited?.user || message.user;
+
+      if (!newText || !editedTs) {
+        return NextResponse.json({ ok: true });
+      }
+
+      const channelId = event.channel;
+
+      const isStandupChannel =
+        STANDUP_CHANNELS.length === 0 || STANDUP_CHANNELS.includes(channelId);
+      if (!isStandupChannel) {
+        return NextResponse.json({ ok: true });
+      }
+
+      const { data: existing } = await supabase
+        .from("standup_entries")
+        .select("id, employee_id")
+        .eq("slack_message_ts", editedTs)
+        .single();
+
+      if (!existing) {
+        console.log(`[Slack] Edited message ${editedTs} has no matching standup entry — treating as new`);
+        const employee = await resolveEmployee(supabase, editedBy || "");
+        const parsed = await parseStandup(newText);
+        await supabase.from("standup_entries").insert({
+          employee_id: employee?.id || null,
+          slack_user_id: editedBy || null,
+          slack_message_ts: editedTs,
+          channel_id: channelId,
+          raw_text: newText,
+          completed: parsed.completed,
+          blockers: parsed.blockers,
+          in_progress: parsed.in_progress,
+          performance_score: parsed.score,
+          parsed_at: new Date().toISOString(),
+        });
+        console.log(`[Standup] Created from edit: score=${parsed.score}`);
+        return NextResponse.json({ ok: true });
+      }
+
+      const parsed = await parseStandup(newText);
+      await supabase
+        .from("standup_entries")
+        .update({
+          raw_text: newText,
+          completed: parsed.completed,
+          blockers: parsed.blockers,
+          in_progress: parsed.in_progress,
+          performance_score: parsed.score,
+          parsed_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+
+      console.log(`[Standup] Updated after edit: score=${parsed.score}, completed=${parsed.completed.length}`);
+      return NextResponse.json({ ok: true });
+    }
+
+    // ── new message (no subtype) ─────────────────────────────────────────
+    if (event.subtype || event.bot_id) {
       return NextResponse.json({ ok: true });
     }
 
@@ -90,33 +190,33 @@ export async function POST(req: NextRequest) {
     const text = event.text;
     const messageTs = event.ts;
 
-    if (!text || !userId || !messageTs || !channelId) {
+    if (!text || !userId || !messageTs) {
       return NextResponse.json({ ok: true });
     }
 
-    if (!standupChannels.includes(channelId)) {
+    const isStandupChannel =
+      STANDUP_CHANNELS.length === 0 || STANDUP_CHANNELS.includes(channelId);
+
+    if (!isStandupChannel) {
       return NextResponse.json({ ok: true });
     }
-
-    const supabase = createAdminClient();
 
     const { data: existing } = await supabase
       .from("standup_entries")
       .select("id")
       .eq("slack_message_ts", messageTs)
-      .maybeSingle();
+      .single();
 
     if (existing) {
       return NextResponse.json({ ok: true });
     }
 
-    const { data: employee } = await supabase
-      .from("employees")
-      .select("id, full_name")
-      .eq("slack_user_id", userId)
-      .maybeSingle();
-
+    const employee = await resolveEmployee(supabase, userId);
     const parsed = await parseStandup(text);
+
+    if (!parsed.isStandup) {
+      return NextResponse.json({ ok: true });
+    }
 
     await supabase.from("standup_entries").insert({
       employee_id: employee?.id || null,
@@ -138,7 +238,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[Slack events] Error:", err);
-    // Acknowledge to avoid Slack retries storms when our parser fails
     return NextResponse.json({ ok: true });
   }
 }

@@ -15,16 +15,16 @@
       "schedule": "0 4 1,15 * *"
     },
     {
-      "path": "/api/cron/linkedin-export-reminder",
-      "schedule": "0 9 * * 1-5"
+      "path": "/api/cron/linkedin-weekly-reminder",
+      "schedule": "0 10 * * 3"
+    },
+    {
+      "path": "/api/cron/linkedin-followup-reminder",
+      "schedule": "0 10 * * 4"
     },
     {
       "path": "/api/cron/monthly-report",
-      "schedule": "0 9 * * 1-5"
-    },
-    {
-      "path": "/api/cron/payroll-reminder",
-      "schedule": "0 4 * * *"
+      "schedule": "0 10 1 * *"
     }
   ]
 }
