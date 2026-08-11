@@ -6,6 +6,25 @@ export interface ParsedStandup {
   in_progress: string[];
   summary: string;
   score: number;
+  isStandup: boolean;
+}
+
+const STANDUP_KEYWORDS = [
+  "standup", "stand-up", "stand up", "daily update", "daily report",
+  "what i did", "what i worked on", "completed", "in progress", "blocker",
+  "blockers", "todo", "to-do", "today i", "yesterday i", "plan for today",
+  "worked on", "finished", "shipped", "deployed", "reviewed", "fixed",
+  "developed", "implemented", "tested", "debugged", "merged",
+];
+
+function looksLikeStandup(text: string): boolean {
+  const lower = text.toLowerCase();
+  const hasStandupKeyword = STANDUP_KEYWORDS.some((kw) => lower.includes(kw));
+  const hasBulletPoints = /^[-•*]\s/m.test(text) || /^\d+[.)]\s/m.test(text);
+  const hasSections = /(completed|in progress|blockers?|todo|plan|today|yesterday)/i.test(text);
+  const hasMultipleLines = text.split("\n").filter((l) => l.trim()).length >= 2;
+
+  return hasStandupKeyword || (hasBulletPoints && hasMultipleLines) || hasSections;
 }
 
 const PARSE_PROMPT = `You are a standup note parser. Analyze the standup message and return ONLY a valid JSON object (no markdown, no explanation).
@@ -94,10 +113,22 @@ function fallbackParse(rawText: string): ParsedStandup {
     in_progress,
     summary: rawText.split("\n").find(l => l.trim().length > 10)?.trim() || rawText.slice(0, 100),
     score,
+    isStandup: false,
   };
 }
 
 export async function parseStandup(rawText: string): Promise<ParsedStandup> {
+  if (!looksLikeStandup(rawText)) {
+    return {
+      completed: [],
+      blockers: [],
+      in_progress: [],
+      summary: rawText.slice(0, 100),
+      score: 0,
+      isStandup: false,
+    };
+  }
+
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     console.warn("[Standup parser] GROQ_API_KEY not set — using fallback parse");
@@ -134,6 +165,8 @@ export async function parseStandup(rawText: string): Promise<ParsedStandup> {
       ? parsed.in_progress.filter((t: string) => t && t.toLowerCase() !== "none")
       : [];
 
+    const hasContent = completed.length > 0 || in_progress.length > 0;
+
     const computed =
       completed.length * 15 + in_progress.length * 10 - blockers.length * 10 + 10;
 
@@ -149,6 +182,7 @@ export async function parseStandup(rawText: string): Promise<ParsedStandup> {
         typeof parsed.score === "number" && parsed.score > 0
           ? Math.min(100, parsed.score)
           : Math.min(100, Math.max(0, computed)),
+      isStandup: hasContent,
     };
   } catch (err) {
     console.error("[Standup parser] Groq error:", err);

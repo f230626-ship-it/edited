@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { assertCronAuthorized } from "@/lib/cron-auth";
 import { runLinkedInExportReminderCron } from "@/actions/linkedin-outreach";
 
 /**
- * Daily check: Slack/email handlers on/after last working day (Asia/Karachi).
- * vercel.json: { "path": "/api/cron/linkedin-export-reminder", "schedule": "0 9 * * *" }
+ * Manual trigger for LinkedIn export reminders.
+ * Can be called directly for testing: POST /api/cron/linkedin-export-reminder?force=1
  */
 export async function GET(req: NextRequest) {
   return handle(req);
@@ -15,10 +14,17 @@ export async function POST(req: NextRequest) {
 }
 
 async function handle(req: NextRequest) {
-  const denied = assertCronAuthorized(req);
-  if (denied) return denied;
+  const auth = req.headers.get("authorization");
+  const secret = process.env.CRON_SECRET;
 
-  const force = req.nextUrl.searchParams.get("force") === "1";
-  const result = await runLinkedInExportReminderCron(force);
+  if (!secret) {
+    return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
+  }
+
+  if (auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const result = await runLinkedInExportReminderCron(true);
   return NextResponse.json(result);
 }

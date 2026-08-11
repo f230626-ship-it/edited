@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentEmployee, canAccessSales, isSalesOwner } from "@/lib/auth";
+import { createHash } from "node:crypto";
 import {
   detectDatasetType,
   parseCSV,
@@ -59,6 +60,35 @@ export async function POST(req: NextRequest) {
 
     // Parse ZIP early so we can auto-match / auto-create profiles
     const arrayBuffer = await zipFile.arrayBuffer();
+
+    // Compute SHA-256 hash for duplicate detection
+    const fileHash = createHash("sha256").update(Buffer.from(arrayBuffer)).digest("hex");
+
+    // Check for exact file hash duplicate (if file_hash column exists)
+    let hashDuplicate = false;
+    try {
+      const { data: existingHash } = await supabase
+        .from("linkedin_imports")
+        .select("id, filename, status")
+        .eq("file_hash", fileHash)
+        .not("status", "eq", "failed")
+        .maybeSingle();
+
+      if (existingHash) {
+        hashDuplicate = true;
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Duplicate file detected. This ZIP was already uploaded as "${existingHash.filename}" (status: ${existingHash.status}).`,
+          },
+          { status: 409 }
+        );
+      }
+    } catch {
+      // file_hash column may not exist yet — migration 032 handles this
+      // Skip file hash dedup if column is missing
+    }
+
     const datasets = await extractAndParseZip(arrayBuffer);
     const profileDataset = datasets.find((d) => d.type === "profile");
     const ownerName =
@@ -81,7 +111,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!profile) {
-      // Non-admins may only auto-match against their own profiles
+      // Only search profiles assigned to the current employee (admins see all)
       let profileQuery = supabase
         .from("sales_profiles")
         .select("id, name, employee_id, is_active, platform")
@@ -105,6 +135,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Enforce ownership: non-admins can only upload for their own profiles
     if (!isAdmin && profile && profile.employee_id && profile.employee_id !== employee.id) {
       return NextResponse.json(
         { success: false, error: "You can only upload exports for profiles assigned to you" },
@@ -113,6 +144,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!profile) {
+      // Check if a profile with this name already exists (prevents duplicates)
       const { data: nameDuplicate } = await supabase
         .from("sales_profiles")
         .select("id, name, employee_id")
@@ -124,16 +156,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            error: `A profile named "${ownerName}" already exists${
-              nameDuplicate.employee_id && nameDuplicate.employee_id !== employee.id
-                ? " (assigned to another employee). Please ask an admin to assign it to you."
-                : ". Select it from the upload dialog or ask an admin for help."
-            }`,
+            error: `A profile named "${ownerName}" already exists (assigned to another employee). Please ask the admin to assign it to you.`,
           },
           { status: 409 }
         );
       }
 
+      // truly new profile — auto-create assigned to uploader
       const { data: created, error: createErr } = await supabase
         .from("sales_profiles")
         .insert({
@@ -148,10 +177,7 @@ export async function POST(req: NextRequest) {
 
       if (createErr || !created) {
         return NextResponse.json(
-          {
-            success: false,
-            error: createErr?.message || `Could not create profile for "${ownerName}"`,
-          },
+          { success: false, error: createErr?.message || `Could not create profile for "${ownerName}"` },
           { status: 500 }
         );
       }
@@ -160,17 +186,53 @@ export async function POST(req: NextRequest) {
       createdProfile = true;
     }
 
-    // If profile has no handler yet, assign the uploader
-    if (!profile.employee_id) {
-      await supabase
-        .from("sales_profiles")
-        .update({ employee_id: employee.id })
-        .eq("id", profile.id);
-      profile.employee_id = employee.id;
-    }
-
     const handlerEmployeeId = profile.employee_id || employee.id;
 
+    // Replace prior imports for this sales profile
+    await supabase.from("linkedin_imports").delete().eq("sales_profile_id", salesProfileId);
+
+    // Insert import record — try with file_hash first (migration 032), fall back without
+    let importRecord: any = null;
+    let importError: any = null;
+
+    const baseImport = {
+      employee_id: handlerEmployeeId,
+      sales_profile_id: salesProfileId,
+      uploaded_by: employee.id,
+      filename: zipFile.name,
+      file_size: zipFile.size,
+      status: "processing" as const,
+    };
+
+    // Try with file_hash (requires migration 032)
+    const withHash = await supabase
+      .from("linkedin_imports")
+      .insert({ ...baseImport, file_hash: fileHash })
+      .select()
+      .single();
+
+    if (withHash.error && withHash.error.message?.includes("file_hash")) {
+      // Column doesn't exist yet — insert without it
+      const withoutHash = await supabase
+        .from("linkedin_imports")
+        .insert(baseImport)
+        .select()
+        .single();
+      importRecord = withoutHash.data;
+      importError = withoutHash.error;
+    } else {
+      importRecord = withHash.data;
+      importError = withHash.error;
+    }
+
+    if (importError || !importRecord) {
+      return NextResponse.json(
+        { success: false, error: importError?.message || "Failed to create import record" },
+        { status: 500 }
+      );
+    }
+
+    const importId = importRecord.id;
     const datasetTypes = datasets.map((d) => d.type);
     const isPartial = detectPartialExport(datasetTypes);
     const displayName = ownerName || profile.name;
@@ -194,11 +256,9 @@ export async function POST(req: NextRequest) {
 
     // Duplicate check BEFORE deleting prior imports
     if (periodRows.length > 0) {
+      let isDuplicate = false;
       const existingPeriods: string[] = [];
-      const monthNames = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-      ];
+      const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
       for (const row of periodRows) {
         const { data: existing } = await supabase
@@ -210,11 +270,14 @@ export async function POST(req: NextRequest) {
           .maybeSingle();
 
         if (existing) {
+          isDuplicate = true;
           existingPeriods.push(`${monthNames[row.period_month - 1]} ${row.period_year}`);
         }
       }
 
-      if (existingPeriods.length > 0) {
+      if (isDuplicate) {
+        // Clean up the empty import record
+        await supabase.from("linkedin_imports").delete().eq("id", importId);
         return NextResponse.json(
           {
             success: false,
@@ -224,31 +287,6 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-
-    // Replace prior imports for this sales profile
-    await supabase.from("linkedin_imports").delete().eq("sales_profile_id", salesProfileId);
-
-    const { data: importRecord, error: importError } = await supabase
-      .from("linkedin_imports")
-      .insert({
-        employee_id: handlerEmployeeId,
-        sales_profile_id: salesProfileId,
-        uploaded_by: employee.id,
-        filename: zipFile.name,
-        file_size: zipFile.size,
-        status: "processing",
-      })
-      .select()
-      .single();
-
-    if (importError || !importRecord) {
-      return NextResponse.json(
-        { success: false, error: importError?.message || "Failed to create import record" },
-        { status: 500 }
-      );
-    }
-
-    const importId = importRecord.id;
 
     const storeResults = await storeAllData(
       supabase,
@@ -308,13 +346,20 @@ export async function POST(req: NextRequest) {
     revalidatePath("/sales/linkedin/intelligence");
     revalidatePath("/sales/admin/profiles");
 
-    // Trigger automated monthly PDF report email to admin upon successful upload
-    let reportResult = null;
-    try {
-      const { runMonthlyReportGeneration } = await import("@/lib/linkedin/monthly-report");
-      reportResult = await runMonthlyReportGeneration(true);
-    } catch (reportErr) {
-      console.error("[LinkedIn API upload] Failed to send report to admin:", reportErr);
+    // Check if all profiles have uploaded and send report if so
+    if (periodRows.length > 0) {
+      try {
+        const { checkAllUploadedAndSendReport } = await import("@/actions/linkedin-outreach");
+        const reportCheck = await checkAllUploadedAndSendReport();
+        console.log(
+          "[upload] Profile completion:",
+          `${reportCheck.uploadedCount}/${reportCheck.requiredCount} profiles`,
+          reportCheck.allUploaded ? "→ ALL COMPLETE → generating report" : `→ missing: ${reportCheck.missingProfiles?.join(", ") || "none"}`,
+          reportCheck.reportSent ? "→ report sent to admin" : ""
+        );
+      } catch (e) {
+        console.error("[upload] Auto-report check failed:", e);
+      }
     }
 
     return NextResponse.json({
@@ -328,7 +373,6 @@ export async function POST(req: NextRequest) {
       months: periodRows.length,
       datasets: datasets.map((d) => ({ type: d.type, rows: d.rowCount })),
       storeResults,
-      report: reportResult,
     });
   } catch (err: unknown) {
     console.error("[LinkedIn API upload] Error:", err);
@@ -458,41 +502,20 @@ async function storeAllData(
         case "invitations": {
           const rows = parseInvitationsData(dataset.data);
           if (rows.length) {
-            const chunkSize = 500;
-            let inserted = 0;
-            let lastError: string | null = null;
-            for (let i = 0; i < rows.length; i += chunkSize) {
-              const chunk = rows.slice(i, i + chunkSize).map((r) => ({
-                ...base,
-                profile_id: salesProfileId,
-                ...r,
-              }));
-              const { error } = await supabase.from("linkedin_invitations").insert(chunk);
-              if (error) { lastError = error.message; break; }
-              inserted += chunk.length;
-            }
-            results.invitations = lastError ? `ERR: ${lastError} (inserted ${inserted})` : `ok(${inserted})`;
+            const { error } = await supabase
+              .from("linkedin_invitations")
+              .insert(rows.map((r) => ({ ...base, ...r })));
+            results.invitations = error ? `ERR: ${error.message}` : `ok(${rows.length})`;
           }
           break;
         }
         case "connections": {
           const rows = parseConnectionsData(dataset.data);
           if (rows.length) {
-            const chunkSize = 500;
-            let inserted = 0;
-            let lastError: string | null = null;
-            for (let i = 0; i < rows.length; i += chunkSize) {
-              const chunk = rows.slice(i, i + chunkSize).map((r) => ({
-                ...base,
-                profile_id: salesProfileId,
-                url: r.profile_url,
-                ...r,
-              }));
-              const { error } = await supabase.from("linkedin_connections").insert(chunk);
-              if (error) { lastError = error.message; break; }
-              inserted += chunk.length;
-            }
-            results.connections = lastError ? `ERR: ${lastError} (inserted ${inserted})` : `ok(${inserted})`;
+            const { error } = await supabase
+              .from("linkedin_connections")
+              .insert(rows.map((r) => ({ ...base, ...r })));
+            results.connections = error ? `ERR: ${error.message}` : `ok(${rows.length})`;
           }
           break;
         }
@@ -507,13 +530,7 @@ async function storeAllData(
               const chunk = rows.slice(i, i + chunkSize).map((r) => ({
                 ...base,
                 sales_profile_id: salesProfileId,
-                profile_id: salesProfileId,
                 ...r,
-                // Also write to extra DB columns for compatibility
-                date: r.sent_at || null,
-                content: r.content_preview || null,
-                is_outbound: r.is_from_owner,
-                message_date: r.sent_at || null,
               }));
               const { error } = await supabase.from("linkedin_messages").insert(chunk);
               if (error) {

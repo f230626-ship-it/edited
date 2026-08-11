@@ -1,10 +1,10 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-
 import { getCurrentEmployee, canAccessSales, isSalesOwner } from "@/lib/auth";
 import {
   aggregateInvitations,
+  aggregateConnections,
   mergePeriodMetrics,
   computeKpis,
   computeReportingWindow,
@@ -151,8 +151,7 @@ function periodStatsToMetrics(
 
 async function loadWeeklyFromRaw(
   supabase: ReturnType<typeof createAdminClient>,
-  salesProfileId: string,
-  monthFilter?: string | null
+  salesProfileId: string
 ): Promise<PeriodMetric[]> {
   const { data: latestImport } = await supabase
     .from("linkedin_imports")
@@ -168,115 +167,45 @@ async function loadWeeklyFromRaw(
   const [{ data: invitations }, { data: connections }, { data: messages }] = await Promise.all([
     supabase
       .from("linkedin_invitations")
-      .select("direction, invitation_date, invitee_profile_url, first_name, last_name")
+      .select("direction, invitation_date")
       .eq("import_id", latestImport.id),
     supabase
       .from("linkedin_connections")
-      .select("connected_on, profile_url, url, first_name, last_name")
+      .select("connected_on")
       .eq("import_id", latestImport.id),
     supabase
       .from("linkedin_messages")
       .select(
-        "conversation_id, from_name, to_name, sent_at, is_from_owner, folder, content_preview, conversation_title, sender_profile_url, recipient_profile_urls, subject, date, message_date, content, is_outbound"
+        "conversation_id, from_name, to_name, sent_at, is_from_owner, folder, content_preview, conversation_title, sender_profile_url, recipient_profile_urls, subject"
       )
       .eq("import_id", latestImport.id),
   ]);
 
-  // Apply month filter to raw data before aggregation
-  let filteredInvitations = invitations || [];
-  let filteredConnections = connections || [];
-  let filteredMessages = messages || [];
-  if (monthFilter) {
-    const [filterYear, filterMonth] = monthFilter.split("-").map(Number);
-    filteredInvitations = filteredInvitations.filter((i) => {
-      if (!i.invitation_date) return false;
-      const d = new Date(i.invitation_date);
-      return !Number.isNaN(d.getTime()) && d.getFullYear() === filterYear && (d.getMonth() + 1) === filterMonth;
-    });
-    filteredConnections = filteredConnections.filter((c) => {
-      if (!c.connected_on) return false;
-      const d = new Date(c.connected_on);
-      return !Number.isNaN(d.getTime()) && d.getFullYear() === filterYear && (d.getMonth() + 1) === filterMonth;
-    });
-    filteredMessages = filteredMessages.filter((m) => {
-      const dateStr = m.sent_at || m.date || m.message_date;
-      if (!dateStr) return false;
-      const d = new Date(dateStr);
-      return !Number.isNaN(d.getTime()) && d.getFullYear() === filterYear && (d.getMonth() + 1) === filterMonth;
-    });
-  }
-
   const invMetrics = aggregateInvitations(
-    filteredInvitations.map((i) => ({
+    (invitations || []).map((i) => ({
       direction: i.direction,
       invitation_date: i.invitation_date,
     })),
     "weekly"
   );
-
-  // Bug 1 fix: only count connections that match someone we invited.
-  // Build invited URL/name sets from outgoing invitations.
-  function normalizeSlug(url: string | null | undefined): string | null {
-    if (!url) return null;
-    const m = url.toLowerCase().match(/linkedin\.com\/in\/([^/?#]+)/);
-    return m ? m[1].replace(/\/$/, "") : null;
-  }
-  function normalizeName(first?: string | null, last?: string | null): string | null {
-    const full = `${first || ""} ${last || ""}`.toLowerCase().replace(/\./g, "").replace(/\s+/g, " ").trim();
-    return full || null;
-  }
-
-  const invitedUrls = new Set<string>();
-  const invitedNames = new Set<string>();
-  for (const inv of filteredInvitations) {
-    if ((inv.direction || "").toUpperCase() !== "OUTGOING") continue;
-    const slug = normalizeSlug(inv.invitee_profile_url);
-    if (slug) invitedUrls.add(slug);
-    const name = normalizeName(inv.first_name, inv.last_name);
-    if (name) invitedNames.add(name);
-  }
-
-  // Build weekly buckets only for accepted connections (matched to invitations)
-  const weeklyConnMap = new Map<string, number>();
-  const monthNames2 = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  for (const conn of filteredConnections) {
-    if (!conn.connected_on) continue;
-    const slug = normalizeSlug(conn.profile_url || conn.url);
-    const name = normalizeName(conn.first_name, conn.last_name);
-    const matched = (slug != null && invitedUrls.has(slug)) || (name != null && invitedNames.has(name));
-    if (!matched) continue;
-    const d = new Date(conn.connected_on);
-    if (Number.isNaN(d.getTime())) continue;
-    const weekNum = Math.ceil(d.getUTCDate() / 7);
-    const key = `W${weekNum} ${monthNames2[d.getUTCMonth()]}`;
-    weeklyConnMap.set(key, (weeklyConnMap.get(key) || 0) + 1);
-  }
-
-  const connMetrics: PeriodMetric[] = Array.from(weeklyConnMap.entries()).map(([period, count]) => ({
-    period,
-    invitesSent: 0,
-    connectionsMade: count,
-    acceptanceRate: 0,
-    messagesSent: 0,
-    initialMessages: 0,
-    followUpsSent: 0,
-    repliesReceived: 0,
-    replyRate: 0,
-  }));
+  const connMetrics = aggregateConnections(
+    (connections || []).map((c) => ({ connected_on: c.connected_on })),
+    "weekly"
+  );
 
   const classified = classifyMessagesByConversation(
-    filteredMessages.map((m) => ({
+    (messages || []).map((m) => ({
       conversation_id: m.conversation_id,
       conversation_title: m.conversation_title,
       from_name: m.from_name,
       to_name: m.to_name,
       sender_profile_url: m.sender_profile_url,
       recipient_profile_urls: m.recipient_profile_urls,
-      sent_at: m.sent_at || m.date || m.message_date || null,
+      sent_at: m.sent_at,
       subject: m.subject,
-      content_preview: m.content_preview || (m.content ? m.content.slice(0, 280) : null),
+      content_preview: m.content_preview,
       folder: m.folder,
-      is_from_owner: m.is_from_owner || m.is_outbound || false,
+      is_from_owner: m.is_from_owner,
     }))
   );
 
@@ -562,7 +491,7 @@ export async function getLinkedInOutreachData(
   async function metricsFor(profileId: string): Promise<PeriodMetric[]> {
     if (!profileId) return [];
     if (granularity === "weekly") {
-      return loadWeeklyFromRaw(supabase, profileId, monthKeySelected !== "all" ? monthKeySelected : null);
+      return loadWeeklyFromRaw(supabase, profileId);
     }
     const rows =
       monthKeySelected === "all"
@@ -577,9 +506,10 @@ export async function getLinkedInOutreachData(
     compareProfileId && compareProfileId !== selected ? compareProfileId : null;
   const compareChartData = compareId ? await metricsFor(compareId) : [];
 
-  // Compute KPIs from chartData so they reflect the selected granularity
-  const selectedKpiMetric = computeKpis(chartData);
-  const compareKpiMetric = compareId ? computeKpis(compareChartData) : null;
+  const selectedKpiMetric = sumPeriodRows(filterRows(selected));
+  const compareKpiMetric = compareId
+    ? sumPeriodRows(filterRows(compareId))
+    : null;
 
   const glanceRows = profiles.map((p) => {
     const m = sumPeriodRows(filterRows(p.id));
@@ -623,8 +553,8 @@ export async function getLinkedInOutreachData(
     granularity,
     selectedMonthKey: monthKeySelected,
     availableMonths,
-    kpis: selectedKpiMetric,
-    compareKpis: compareKpiMetric,
+    kpis: computeKpis([selectedKpiMetric]),
+    compareKpis: compareKpiMetric ? computeKpis([compareKpiMetric]) : null,
     chartData,
     compareChartData,
     glanceRows,
@@ -632,20 +562,145 @@ export async function getLinkedInOutreachData(
   };
 }
 
-export async function sendLinkedInExportReminders(force = false): Promise<{
-  sent: number;
-  skipped: number;
-  errors: string[];
-  reason?: string;
+/**
+ * Get the authoritative upload status for the current month.
+ * Returns which required profiles have/haven't uploaded.
+ * Tracks at the PROFILE level, not the handler level.
+ */
+async function getUploadStatus(year: number, month: number): Promise<{
+  required: { employeeId: string; name: string; profileId: string; profileName: string }[];
+  uploadedProfileIds: Set<string>;
+  missing: { employeeId: string; name: string; profileId: string; profileName: string }[];
 }> {
-  const employee = await getCurrentEmployee();
-  if (!employee || !isSalesOwner(employee.role)) {
-    return { sent: 0, skipped: 0, errors: ["Only admins can send reminders"] };
+  const supabase = createAdminClient();
+
+  // All active LinkedIn sales profiles with assigned employees
+  const { data: profiles } = await supabase
+    .from("sales_profiles")
+    .select("id, name, employee_id, platform")
+    .eq("is_active", true);
+
+  const linkedInProfiles = (profiles || []).filter(
+    (p) => (!p.platform || p.platform === "linkedin") && p.employee_id
+  );
+
+  // Get employee (handler) names
+  const handlerIds = [...new Set(linkedInProfiles.map((p) => p.employee_id))] as string[];
+  const handlersById = new Map<string, string>();
+  if (handlerIds.length > 0) {
+    const { data: emps } = await supabase
+      .from("employees")
+      .select("id, full_name")
+      .in("id", handlerIds);
+    for (const e of emps || []) handlersById.set(e.id, e.full_name || "Unknown");
   }
 
-  return runLinkedInExportReminderCron(force);
+  // Build required list: one entry per PROFILE (not per handler)
+  const required = linkedInProfiles.map((p) => ({
+    employeeId: p.employee_id!,
+    name: handlersById.get(p.employee_id!) || "Unknown",
+    profileId: p.id,
+    profileName: p.name,
+  }));
+
+  // Get profiles that already have period stats for this month
+  const { data: existingStats } = await supabase
+    .from("linkedin_profile_period_stats")
+    .select("sales_profile_id")
+    .eq("period_year", year)
+    .eq("period_month", month);
+
+  const uploadedProfileIds = new Set((existingStats || []).map((s) => s.sales_profile_id));
+
+  // A profile is "uploaded" if it has period stats for this month
+  const missing: typeof required = [];
+  for (const r of required) {
+    if (!uploadedProfileIds.has(r.profileId)) {
+      missing.push(r);
+    }
+  }
+
+  return { required, uploadedProfileIds, missing };
 }
 
+/**
+ * Check if ALL required profiles have uploaded for the current month.
+ * If yes AND report not already sent → generate report and email admin.
+ * Called after every successful upload.
+ */
+export async function checkAllUploadedAndSendReport(): Promise<{
+  allUploaded: boolean;
+  reportSent: boolean;
+  uploadedCount: number;
+  requiredCount: number;
+  missingProfiles: string[];
+  error?: string;
+}> {
+  const { year, month } = currentKarachiYearMonth(new Date());
+  const supabase = createAdminClient();
+
+  const status = await getUploadStatus(year, month);
+
+  // All uploaded = every required profile has period stats
+  const allUploaded = status.required.length > 0 && status.missing.length === 0;
+
+  if (!allUploaded) {
+    return {
+      allUploaded: false,
+      reportSent: false,
+      uploadedCount: status.required.length - status.missing.length,
+      requiredCount: status.required.length,
+      missingProfiles: status.missing.map((m) => m.profileName),
+    };
+  }
+
+  // Check if report already sent
+  const { data: existingReport } = await supabase
+    .from("monthly_report_log")
+    .select("id")
+    .eq("period_year", year)
+    .eq("period_month", month)
+    .eq("status", "sent")
+    .maybeSingle();
+
+  if (existingReport) {
+    return {
+      allUploaded: true,
+      reportSent: true,
+      uploadedCount: status.required.length,
+      requiredCount: status.required.length,
+      missingProfiles: [],
+    };
+  }
+
+  // Generate and send the report immediately
+  try {
+    const { generateAndSendMonthlyReport } = await import("@/actions/monthly-report");
+    const result = await generateAndSendMonthlyReport(true);
+    return {
+      allUploaded: true,
+      reportSent: result.success,
+      uploadedCount: status.required.length,
+      requiredCount: status.required.length,
+      missingProfiles: [],
+      error: result.error,
+    };
+  } catch (e: any) {
+    return {
+      allUploaded: true,
+      reportSent: false,
+      uploadedCount: status.required.length,
+      requiredCount: status.required.length,
+      missingProfiles: [],
+      error: e.message || "Report generation failed",
+    };
+  }
+}
+
+/**
+ * Wednesday 3PM initial reminder: ONE message in the Sales channel
+ * listing missing profiles and their responsible handlers.
+ */
 export async function runLinkedInExportReminderCron(force = false): Promise<{
   sent: number;
   skipped: number;
@@ -686,221 +741,191 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
   const hasSlack =
     !!process.env.SLACK_BOT_TOKEN && !!process.env.SLACK_CHANNEL_ID;
   if (!hasSlack) {
-    return {
-      sent: 0,
-      skipped: 0,
-      errors: [
-        "Missing Slack env: set SLACK_BOT_TOKEN and SLACK_CHANNEL_ID on this runtime.",
+    return { sent: 0, skipped: 0, errors: [], reason: "Slack not configured" };
+  }
+
+  const status = await getUploadStatus(year, month);
+
+  if (status.required.length === 0) {
+    return { sent: 0, skipped: 0, errors: [], reason: "No active LinkedIn sales profiles" };
+  }
+
+  if (status.missing.length === 0) {
+    return { sent: 0, skipped: status.required.length, errors: [], reason: "All profiles already uploaded" };
+  }
+
+  const monthLabel = `${["January","February","March","April","May","June","July","August","September","October","November","December"][month - 1]} ${year}`;
+  const completedCount = status.required.length - status.missing.length;
+
+  // Build missing profiles list with handler names
+  const missingList = status.missing.map((m) => `• *${m.profileName}* — handled by ${m.name}`).join("\n");
+
+  const blocks = [
+    {
+      type: "header",
+      text: { type: "plain_text", text: `📊 LinkedIn Export Reminder — ${monthLabel}`, emoji: true },
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `Hi team 👋\n\nPlease upload the remaining LinkedIn exports for the following profiles:\n\n${missingList}\n\n*Upload status:* ${completedCount}/${status.required.length} profiles completed\n\nPlease upload the required LinkedIn exports to the dashboard. Once all required profiles are uploaded successfully, the monthly Sales report will be generated automatically and sent to the admin.`,
+      },
+    },
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Upload LinkedIn Export", emoji: true },
+          url: `${appUrl}/sales/linkedin?upload=1`,
+          style: "primary",
+        },
       ],
-      reason: "Slack not configured",
-    };
-  }
-
-  const { data: profiles, error: profilesError } = await supabase
-    .from("sales_profiles")
-    .select("id, name, employee_id, platform")
-    .eq("is_active", true);
-
-  if (profilesError) {
-    return { sent: 0, skipped: 0, errors: [profilesError.message], reason: "Failed to load profiles" };
-  }
-
-  const linkedInProfiles = (profiles || []).filter(
-    (p) => !p.platform || p.platform === "linkedin"
-  );
-
-  if (!linkedInProfiles.length) {
-    return {
-      sent: 0,
-      skipped: 0,
-      errors: [],
-      reason: "No active LinkedIn sales profiles — create or upload a ZIP first",
-    };
-  }
-
-  // Cron skips profiles that already have this month's stats.
-  // Force ("Send reminder now") always emails handlers for all assigned profiles.
-  const covered = new Set<string>();
-  if (!force) {
-    const { data: existingStats } = await supabase
-      .from("linkedin_profile_period_stats")
-      .select("sales_profile_id")
-      .eq("period_year", year)
-      .eq("period_month", month);
-    for (const s of existingStats || []) covered.add(s.sales_profile_id);
-  }
-
-  const handlerIds = Array.from(
-    new Set(linkedInProfiles.map((p) => p.employee_id).filter(Boolean))
-  ) as string[];
-  const handlersById = new Map<string, { full_name: string; email: string; role: string }>();
-  if (handlerIds.length > 0) {
-    const { data: emps } = await supabase
-      .from("employees")
-      .select("id, full_name, email, role")
-      .in("id", handlerIds);
-    for (const e of emps || []) {
-      handlersById.set(e.id, {
-        full_name: e.full_name,
-        email: e.email || "",
-        role: e.role || "",
-      });
-    }
-  }
-
-  type HandlerGroup = {
-    employeeId: string;
-    email: string;
-    name: string;
-    profiles: { id: string; name: string }[];
-  };
-
-  const byHandler = new Map<string, HandlerGroup>();
-  let unassigned = 0;
-  let alreadyCovered = 0;
-  let missingEmail = 0;
-
-  for (const p of linkedInProfiles) {
-    if (!p.employee_id) {
-      unassigned += 1;
-      continue;
-    }
-    if (covered.has(p.id)) {
-      alreadyCovered += 1;
-      continue;
-    }
-    const emp = handlersById.get(p.employee_id);
-    if (!emp) {
-      missingEmail += 1;
-      continue;
-    }
-    // Skip admin/CEO — they receive the PDF report, not upload reminders
-    if (emp.role === "admin" || emp.role === "ceo") {
-      continue;
-    }
-    if (!emp.email) missingEmail += 1;
-    if (!byHandler.has(p.employee_id)) {
-      byHandler.set(p.employee_id, {
-        employeeId: p.employee_id,
-        email: emp.email || "",
-        name: emp.full_name || "there",
-        profiles: [],
-      });
-    }
-    byHandler.get(p.employee_id)!.profiles.push({ id: p.id, name: p.name });
-  }
-
-  const pendingProfiles = linkedInProfiles
-    .filter((p) => !covered.has(p.id))
-    .map((p) => ({ name: p.name, profileId: p.id, employeeId: p.employee_id as string | null }));
-
-  let skipped = alreadyCovered + unassigned + missingEmail;
-  const errors: string[] = [];
-
-  if (pendingProfiles.length === 0) {
-    const unassignedNames = linkedInProfiles
-      .filter((p) => !p.employee_id)
-      .map((p) => p.name);
-    const parts = [
-      alreadyCovered ? `${alreadyCovered} already uploaded this month` : null,
-      unassigned
-        ? `${unassigned} unassigned${
-            unassignedNames.length
-              ? ` (${unassignedNames.slice(0, 5).join(", ")}${unassignedNames.length > 5 ? "…" : ""}) — set a Rep on Sales → Profiles`
-              : ""
-          }`
-        : null,
-      missingEmail ? `${missingEmail} missing handler email` : null,
-    ].filter(Boolean);
-    return {
-      sent: 0,
-      skipped,
-      errors: [],
-      reason: parts.length
-        ? `Nothing to send: ${parts.join("; ")}`
-        : "No pending LinkedIn exports",
-    };
-  }
-
-  // Slack reminder for all pending profiles (channel-wide)
-  const slackChannel = process.env.SLACK_CHANNEL_ID!;
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+    },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: "_Go to LinkedIn Settings > Data Privacy > Get a copy of your data > Request archive. Once ready, download the ZIP and upload it via the button above._",
+        },
+      ],
+    },
   ];
-  const monthLabel = `${monthNames[month - 1]} ${year}`;
-  const blocks = buildReminderBlocks(
-    pendingProfiles.map((p) => ({ name: p.name, profileId: p.profileId })),
-    appUrl,
-    monthLabel
-  );
-  const ts = await postSlackMessage(
-    slackChannel,
-    `LinkedIn Export Reminder — ${monthLabel}`,
-    blocks
-  );
 
-  let sent = 0;
-  if (!ts) {
-    errors.push("Failed to post Slack reminder");
-    return { sent: 0, skipped, errors };
+  const channelText = `LinkedIn Export Reminder — ${monthLabel}\n${completedCount}/${status.required.length} profiles uploaded.\nStill need:\n${status.missing.map((m) => `- ${m.profileName} (${m.name})`).join("\n")}\nUpload: ${appUrl}/sales/linkedin?upload=1`;
+
+  let delivered = false;
+  let deliveryError = "";
+
+  try {
+    const ts = await postSlackMessage(process.env.SLACK_CHANNEL_ID!, channelText, blocks as any);
+    if (ts) delivered = true;
+    else deliveryError = "Slack postMessage returned null";
+  } catch (e: any) {
+    deliveryError = e.message || "slack request failed";
   }
 
-  // Persist one reminder row per handler (valid UUID FK + status CHECK)
-  const handlersToLog =
-    byHandler.size > 0
-      ? Array.from(byHandler.values())
-      : [];
+  // Log for all missing handlers
+  for (const m of status.missing) {
+    await supabase.from("linkedin_export_reminders").upsert(
+      {
+        employee_id: m.employeeId,
+        period_year: year,
+        period_month: month,
+        profile_ids: [m.profileId],
+        status: delivered ? "sent" : "failed",
+        message: delivered ? "Wednesday channel reminder" : deliveryError,
+        sent_at: new Date().toISOString(),
+      },
+      { onConflict: "employee_id,period_year,period_month" }
+    );
+  }
 
-  if (handlersToLog.length === 0) {
-    // Still posted to Slack; log under any assigned employee on pending profiles
-    const fallbackIds = Array.from(
-      new Set(pendingProfiles.map((p) => p.employeeId).filter(Boolean))
-    ) as string[];
-    for (const employeeId of fallbackIds) {
-      const profileIds = pendingProfiles
-        .filter((p) => p.employeeId === employeeId)
-        .map((p) => p.profileId);
-      const { error } = await supabase.from("linkedin_export_reminders").upsert(
+  return {
+    sent: delivered ? 1 : 0,
+    skipped: completedCount,
+    errors: delivered ? [] : [deliveryError || "Slack post failed"],
+  };
+}
+
+/**
+ * Thursday 3PM follow-up: ONE message in the Sales channel
+ * listing ONLY profiles that are STILL missing after 24 hours.
+ * Also checks if all uploaded and triggers report.
+ */
+export async function runFollowUpReminders(): Promise<{
+  sent: number;
+  errors: string[];
+  allUploaded: boolean;
+  reportSent: boolean;
+}> {
+  const { year, month } = currentKarachiYearMonth(new Date());
+  const supabase = createAdminClient();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://hrms.mindvista.io";
+
+  const hasSlack = !!process.env.SLACK_BOT_TOKEN && !!process.env.SLACK_CHANNEL_ID;
+  if (!hasSlack) return { sent: 0, errors: ["Slack not configured"], allUploaded: false, reportSent: false };
+
+  const status = await getUploadStatus(year, month);
+
+  if (status.required.length === 0) {
+    return { sent: 0, errors: [], allUploaded: false, reportSent: false };
+  }
+
+  // Check if all uploaded (profile-level check)
+  const allUploaded = status.missing.length === 0;
+
+  if (allUploaded) {
+    // All uploaded — generate report immediately
+    const reportResult = await checkAllUploadedAndSendReport();
+    return { sent: 0, errors: [], allUploaded: true, reportSent: reportResult.reportSent };
+  }
+
+  const monthLabel = `${["January","February","March","April","May","June","July","August","September","October","November","December"][month - 1]} ${year}`;
+
+  // Build follow-up list with handler names
+  const missingList = status.missing.map((m) => `• *${m.profileName}* — handled by ${m.name}`).join("\n");
+
+  const blocks = [
+    {
+      type: "header",
+      text: { type: "plain_text", text: `📊 LinkedIn Export Follow-up — ${monthLabel}`, emoji: true },
+    },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `The following LinkedIn exports are still pending:\n\n${missingList}\n\nPlease upload the remaining exports to complete this month's Sales report.`,
+      },
+    },
+    {
+      type: "actions",
+      elements: [
         {
-          employee_id: employeeId,
-          period_year: year,
-          period_month: month,
-          profile_ids: profileIds,
-          status: "sent",
-          message: `Slack reminder posted — ${monthLabel}`,
-          sent_at: new Date().toISOString(),
-          slack_thread_ts: ts,
+          type: "button",
+          text: { type: "plain_text", text: "Upload LinkedIn Export", emoji: true },
+          url: `${appUrl}/sales/linkedin?upload=1`,
+          style: "primary",
         },
-        { onConflict: "employee_id,period_year,period_month" }
-      );
-      if (error) errors.push(error.message);
-      else sent += 1;
-    }
-  } else {
-    for (const h of handlersToLog) {
-      const { error } = await supabase.from("linkedin_export_reminders").upsert(
-        {
-          employee_id: h.employeeId,
-          period_year: year,
-          period_month: month,
-          profile_ids: h.profiles.map((p) => p.id),
-          status: "sent",
-          message: `Slack reminder posted — ${monthLabel}`,
-          sent_at: new Date().toISOString(),
-          slack_thread_ts: ts,
-        },
-        { onConflict: "employee_id,period_year,period_month" }
-      );
-      if (error) errors.push(error.message);
-      else sent += 1;
-    }
+      ],
+    },
+  ];
+
+  const channelText = `LinkedIn Export Follow-up — ${monthLabel}\nStill pending:\n${status.missing.map((m) => `- ${m.profileName} (${m.name})`).join("\n")}\nUpload: ${appUrl}/sales/linkedin?upload=1`;
+
+  let delivered = false;
+  let deliveryError = "";
+
+  try {
+    const ts = await postSlackMessage(process.env.SLACK_CHANNEL_ID!, channelText, blocks as any);
+    if (ts) delivered = true;
+    else deliveryError = "Slack postMessage returned null";
+  } catch (e: any) {
+    deliveryError = e.message || "slack request failed";
   }
 
-  // If Slack posted but no employee rows to upsert (all unassigned), count as sent once
-  if (sent === 0 && errors.length === 0) {
-    sent = 1;
+  // Log follow-ups
+  for (const m of status.missing) {
+    await supabase.from("linkedin_export_reminders").upsert(
+      {
+        employee_id: m.employeeId,
+        period_year: year,
+        period_month: month,
+        profile_ids: [m.profileId],
+        status: delivered ? "sent" : "failed",
+        message: delivered ? "Thursday channel follow-up" : deliveryError,
+        sent_at: new Date().toISOString(),
+      },
+      { onConflict: "employee_id,period_year,period_month" }
+    );
   }
 
-  return { sent, skipped, errors };
+  return {
+    sent: delivered ? 1 : 0,
+    errors: delivered ? [] : [deliveryError || "Slack post failed"],
+    allUploaded: false,
+    reportSent: false,
+  };
 }

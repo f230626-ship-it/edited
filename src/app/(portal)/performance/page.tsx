@@ -1,86 +1,194 @@
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth";
-import { ChevronDown, ArrowRight } from "lucide-react";
-import { PerformanceKpiCards } from "@/components/performance/performance-kpi-cards";
-import { PerformanceTrendChart } from "@/components/performance/performance-trend-chart";
-import { EmployeePerformanceTable } from "@/components/performance/employee-performance-table";
-import { PerformanceInsights } from "@/components/performance/performance-insights";
-import { getPerformanceLeaderboard, getStandupEntries, getPerformanceTrend, getPerformanceInsightsAction } from "@/actions/standup";
-import { PeriodSelector } from "@/components/performance/period-selector";
-import Link from "next/link";
+import { PerformanceOverview } from "@/components/performance/performance-overview";
 
-interface PageProps {
-  searchParams: Promise<{ period?: string }>;
-}
-
-export default async function PerformancePage({ searchParams }: PageProps) {
+export default async function PerformancePage() {
   const employee = await requireAuth();
-  
-  const params = await searchParams;
-  const period = (params.period || "monthly") as "weekly" | "monthly" | "quarterly";
+  const supabase = createAdminClient();
 
-  // Fetch real database records based on period
-  const [leaderboard, standupsData, trendData, insightsData] = await Promise.all([
-    getPerformanceLeaderboard(),
-    getStandupEntries(period),
-    getPerformanceTrend(),
-    getPerformanceInsightsAction()
-  ]);
+  const isAdmin = employee.role === "admin" || employee.role === "hr";
 
-  // Compute KPI values from real database data if it exists, otherwise fall back to design mockup defaults.
-  const totalEmployees = leaderboard.length || 1;
-  const avgPerformance = leaderboard.length > 0
-    ? Math.round(leaderboard.reduce((acc, curr) => acc + curr.avg_score, 0) / totalEmployees)
-    : 87;
-  const avgStandup = standupsData?.stats?.avgScore || 91;
-  
-  // Task completion calculation
-  const totalTasks = standupsData?.stats?.totalTasks || 0;
-  const totalBlockers = standupsData?.stats?.totalBlockers || 0;
-  const completionPct = totalTasks > 0 
-    ? Math.round((totalTasks / (totalTasks + totalBlockers)) * 100) 
-    : 92;
+  // Fetch all active employees
+  const { data: employees } = await supabase
+    .from("employees")
+    .select("id, full_name, profile_photo_url, status")
+    .eq("status", "active");
 
-  const overallPerformanceStr = `${avgPerformance}%`;
-  const standupScoreStr = `${avgStandup}%`;
-  const taskCompletionStr = `${completionPct}%`;
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const ctaHref = "/performance/standups";
+  // Fetch standup entries (last 30 days)
+  const { data: standupEntries } = await supabase
+    .from("standup_entries")
+    .select("employee_id, performance_score, completed, created_at")
+    .gte("created_at", thirtyDaysAgo.toISOString())
+    .order("created_at", { ascending: false });
+
+  // Fetch performance scores (supplementary)
+  const { data: perfScores } = await supabase
+    .from("performance_scores")
+    .select("employee_id, avg_score, total_standups, total_tasks_completed, consistency_pct, trend, week_start")
+    .order("week_start", { ascending: false })
+    .limit(200);
+
+  // Build employee rows from standup data + performance scores
+  const employeeRows: {
+    employee_id: string;
+    employee_name: string;
+    employee_photo: string | null;
+    avg_score: number;
+    total_standups: number;
+    consistency_pct: number;
+    total_tasks_completed: number;
+    trend: string;
+  }[] = [];
+
+  const empList = employees || [];
+  for (const emp of empList) {
+    if (!isAdmin && emp.id !== employee.id) continue;
+
+    const empStandups = (standupEntries || []).filter((e) => e.employee_id === emp.id);
+    const empScores = (perfScores || []).filter((s) => s.employee_id === emp.id);
+
+    const totalStandups = empStandups.length;
+    const totalTasks = empStandups.reduce(
+      (sum, e) => sum + (Array.isArray(e.completed) ? e.completed.length : 0),
+      0
+    );
+    const avgScore =
+      empStandups.length > 0
+        ? Math.round(empStandups.reduce((s, e) => s + (e.performance_score || 0), 0) / empStandups.length)
+        : empScores.length > 0
+          ? empScores[0].avg_score
+          : 0;
+
+    const consistencyPct =
+      totalStandups > 0
+        ? Math.min(100, Math.round((totalStandups / 20) * 100))
+        : empScores.length > 0
+          ? empScores[0].consistency_pct
+          : 0;
+
+    const taskCompletionPct =
+      totalStandups > 0
+        ? Math.min(100, Math.round((totalTasks / (totalStandups * 3)) * 100))
+        : empScores.length > 0
+          ? empScores[0].total_tasks_completed
+          : 0;
+
+    const trend = empScores.length > 0 ? empScores[0].trend : "stable";
+
+    employeeRows.push({
+      employee_id: emp.id,
+      employee_name: emp.full_name,
+      employee_photo: emp.profile_photo_url,
+      avg_score: avgScore,
+      total_standups: totalStandups,
+      consistency_pct: consistencyPct,
+      total_tasks_completed: taskCompletionPct,
+      trend,
+    });
+  }
+
+  employeeRows.sort((a, b) => b.avg_score - a.avg_score);
+
+  const overallScore =
+    employeeRows.length > 0
+      ? Math.round(employeeRows.reduce((s, e) => s + e.avg_score, 0) / employeeRows.length)
+      : 0;
+
+  const standupScore = overallScore;
+
+  const taskCompletion =
+    employeeRows.length > 0
+      ? Math.round(employeeRows.reduce((s, e) => s + e.total_tasks_completed, 0) / employeeRows.length)
+      : 0;
+
+  // Trend data — group standups by week
+  const weekBuckets = new Map<string, number[]>();
+  for (const entry of standupEntries || []) {
+    const d = new Date(entry.created_at);
+    const weekStart = new Date(d);
+    weekStart.setDate(d.getDate() - d.getDay() + 1);
+    const key = weekStart.toISOString().split("T")[0];
+    if (!weekBuckets.has(key)) weekBuckets.set(key, []);
+    weekBuckets.get(key)!.push(entry.performance_score || 0);
+  }
+
+  const trendData = Array.from(weekBuckets.entries())
+    .slice(-4)
+    .map(([weekStart, scores]) => ({
+      month: new Date(weekStart + "T00:00:00Z").toLocaleDateString("en-US", { month: "short" }),
+      score: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
+    }));
+
+  // Fill in missing weeks if less than 4 data points
+  const labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  while (trendData.length < 4) {
+    const monthIdx = (now.getMonth() - (3 - trendData.length) + 12) % 12;
+    trendData.unshift({ month: labels[monthIdx], score: overallScore });
+  }
+
+  const overallScoreTrend =
+    trendData.length >= 2 ? trendData[trendData.length - 1].score - trendData[trendData.length - 2].score : 0;
+  const standupScoreTrend = overallScoreTrend;
+  const taskCompletionTrend = overallScoreTrend;
+
+  // Insights
+  const insights: { type: "positive" | "warning"; title: string; description: string }[] = [];
+
+  const activeEmployees = employeeRows.filter((e) => e.total_standups > 0);
+  if (activeEmployees.length > 0) {
+    insights.push({
+      type: "positive",
+      title: "Consistent stand-up reporting",
+      description: "Team is regularly sharing updates and maintaining transparency.",
+    });
+  }
+
+  if (taskCompletion >= 80) {
+    insights.push({
+      type: "positive",
+      title: "Strong task completion",
+      description: "Great job! Task completion rate is above team average.",
+    });
+  }
+
+  const recentScores = employeeRows.filter((e) => e.trend === "down");
+  if (recentScores.length > 0) {
+    insights.push({
+      type: "warning",
+      title: "Some employees showing declining scores",
+      description: `${recentScores.length} employee${recentScores.length > 1 ? "s" : ""} show${recentScores.length === 1 ? "s" : ""} a downward trend compared to last period.`,
+    });
+  }
+
+  if (insights.length === 0) {
+    insights.push({
+      type: "positive",
+      title: "Team performance is stable",
+      description: "No significant changes detected across the team.",
+    });
+  }
+
+  const dateRange = `${now.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${new Date(now.getFullYear(), now.getMonth() + 1, 0).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 
   return (
-    <div className="space-y-6 p-4 md:p-6 lg:p-8 max-w-[1200px] mx-auto">
-      {/* ── Header ─────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in relative z-50">
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight">Performance Overview</h1>
-        
-        <PeriodSelector currentPeriod={period} />
-      </div>
-
-      {/* ── KPI Cards ──────────────────────────────────────── */}
-      <PerformanceKpiCards 
-        overallPerformance={overallPerformanceStr}
-        standupScore={standupScoreStr}
-        taskCompletion={taskCompletionStr}
+    <div className="space-y-6">
+      <PerformanceOverview
+        employees={employeeRows}
+        trendData={trendData}
+        overallScore={overallScore}
+        overallScoreTrend={overallScoreTrend}
+        standupScore={standupScore}
+        standupScoreTrend={standupScoreTrend}
+        taskCompletion={taskCompletion}
+        taskCompletionTrend={taskCompletionTrend}
+        insights={insights}
+        dateRange={dateRange}
+        isDark={false}
       />
-
-      {/* ── Trend Chart ────────────────────────────────────── */}
-      <PerformanceTrendChart data={trendData} />
-
-      {/* ── Employee Table ─────────────────────────────────── */}
-      <EmployeePerformanceTable leaderboard={leaderboard} />
-
-      {/* ── Insights ───────────────────────────────────────── */}
-      <PerformanceInsights insights={insightsData} />
-
-      {/* ── CTA Button ─────────────────────────────────────── */}
-      <div className="animate-slide-up stagger-5 pt-2">
-        <Link 
-          href={ctaHref}
-          className="w-full py-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium flex items-center justify-center gap-2 transition-colors shadow-sm"
-        >
-          View Detailed Standups
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </div>
     </div>
   );
 }

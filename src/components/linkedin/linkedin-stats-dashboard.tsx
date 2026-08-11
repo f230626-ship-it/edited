@@ -15,14 +15,14 @@ import {
 } from "recharts";
 import {
   getLinkedInOutreachData,
-  sendLinkedInExportReminders,
   type OutreachDashboardData,
   type OutreachProfile,
 } from "@/actions/linkedin-outreach";
+import { generateAndSendMonthlyReport } from "@/actions/monthly-report";
 import { LinkedInUploadDialog } from "@/components/linkedin/upload-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Upload, Bell, GitCompareArrows } from "lucide-react";
+import { Upload, Bell, GitCompareArrows, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 
@@ -116,19 +116,18 @@ export function LinkedInStatsDashboard({
     );
   }, [compareMode, compareProfile, data.chartData, data.compareChartData]);
 
-  const handleSendReminder = () => {
+  const handleSendReport = () => {
     startTransition(async () => {
-      const result = await sendLinkedInExportReminders(true);
-      if (result.errors.length > 0) {
-        const detail = result.errors.slice(0, 3).join(" · ");
-        toast.error(detail || "Something went wrong");
+      const result = await generateAndSendMonthlyReport(true);
+      if (!result.success) {
+        toast.error(result.error || "Failed to send report");
         return;
       }
-      toast.success(
-        result.sent > 0
-          ? `Slack reminder sent (${result.sent} handler${result.sent === 1 ? "" : "s"})`
-          : result.reason || "Reminder completed"
-      );
+      if (result.alreadySent) {
+        toast.info(`Report for ${result.month} was already sent`);
+        return;
+      }
+      toast.success(`Monthly report sent for ${result.month} (${result.profilesIncluded} profiles)`);
     });
   };
 
@@ -147,12 +146,12 @@ export function LinkedInStatsDashboard({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {data.isAdmin && (
-            <Button variant="outline" size="sm" onClick={handleSendReminder} disabled={isPending}>
-              <Bell className="mr-2 h-4 w-4" />
-              Send reminder now
-            </Button>
-          )}
+              {data.isAdmin && (
+                <Button variant="outline" size="sm" onClick={handleSendReport} disabled={isPending}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Send report now
+                </Button>
+              )}
           <Button
             variant={compareMode ? "default" : "outline"}
             size="sm"

@@ -63,10 +63,10 @@ export const brevoProvider: EmailProvider = {
         body.htmlContent = payload.html;
       }
 
-      if (payload.attachments?.length) {
+      if (payload.attachments && payload.attachments.length > 0) {
         body.attachment = payload.attachments.map((a) => ({
           name: a.name,
-          content: a.content, // base64
+          content: a.content,
         }));
       }
 
