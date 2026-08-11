@@ -137,28 +137,35 @@ export async function triggerWeeklyScoring() {
 }
 
 export async function getPerformanceTrend(): Promise<{ name: string; score: number }[]> {
+  const employee = await requireAuth();
   const supabase = createAdminClient();
-  const { data: scores } = await supabase
+  const isElevated = employee.role === "admin" || employee.role === "hr";
+
+  let scoresQuery = supabase
     .from("performance_scores")
     .select("week_start, avg_score")
     .order("week_start", { ascending: true });
+  if (!isElevated) {
+    scoresQuery = scoresQuery.eq("employee_id", employee.id);
+  }
+
+  const { data: scores } = await scoresQuery;
 
   if (!scores || scores.length === 0) {
-    // If performance_scores is empty, construct a dynamic baseline using recent standup entries
-    const { data: standups } = await supabase
+    let standupsQuery = supabase
       .from("standup_entries")
       .select("created_at, performance_score")
       .order("created_at", { ascending: true });
-
-    if (!standups || standups.length === 0) {
-      return [
-        { name: "Week 1", score: 85 },
-        { name: "Week 2", score: 88 },
-        { name: "Week 3", score: 91 },
-      ];
+    if (!isElevated) {
+      standupsQuery = standupsQuery.eq("employee_id", employee.id);
     }
 
-    // Group standups by week
+    const { data: standups } = await standupsQuery;
+
+    if (!standups || standups.length === 0) {
+      return [];
+    }
+
     const weeklyMap = new Map<string, { sum: number; count: number }>();
     standups.forEach((s) => {
       const date = new Date(s.created_at);
@@ -182,7 +189,6 @@ export async function getPerformanceTrend(): Promise<{ name: string; score: numb
       .slice(-6);
   }
 
-  // Group by week_start and compute average
   const weeklyMap = new Map<string, { sum: number; count: number }>();
   scores.forEach((s) => {
     const key = s.week_start;
@@ -212,14 +218,20 @@ export interface PerformanceInsightItem {
 }
 
 export async function getPerformanceInsightsAction(): Promise<PerformanceInsightItem[]> {
+  const employee = await requireAuth();
   const supabase = createAdminClient();
+  const isElevated = employee.role === "admin" || employee.role === "hr";
 
-  // Fetch recent standups to analyze blockers and scores
-  const { data: standups } = await supabase
+  let standupsQuery = supabase
     .from("standup_entries")
     .select("performance_score, blockers, completed")
     .order("created_at", { ascending: false })
     .limit(100);
+  if (!isElevated) {
+    standupsQuery = standupsQuery.eq("employee_id", employee.id);
+  }
+
+  const { data: standups } = await standupsQuery;
 
   const insights: PerformanceInsightItem[] = [];
 
@@ -229,12 +241,13 @@ export async function getPerformanceInsightsAction(): Promise<PerformanceInsight
         type: "positive",
         title: "System ready for standup input",
         desc: "Post updates to the configured Slack channel to generate dynamic analytics.",
-      }
+      },
     ];
   }
 
-  // 1. Analyze standup submission consistency
-  const avgScore = Math.round(standups.reduce((sum, s) => sum + (s.performance_score || 0), 0) / standups.length);
+  const avgScore = Math.round(
+    standups.reduce((sum, s) => sum + (s.performance_score || 0), 0) / standups.length
+  );
   if (avgScore >= 80) {
     insights.push({
       type: "positive",
@@ -249,7 +262,6 @@ export async function getPerformanceInsightsAction(): Promise<PerformanceInsight
     });
   }
 
-  // 2. Check blockers
   const allBlockers: string[] = [];
   standups.forEach((s) => {
     if (Array.isArray(s.blockers)) {
@@ -273,7 +285,6 @@ export async function getPerformanceInsightsAction(): Promise<PerformanceInsight
     });
   }
 
-  // 3. Task completion volumes
   let totalTasksCompleted = 0;
   standups.forEach((s) => {
     if (Array.isArray(s.completed)) totalTasksCompleted += s.completed.length;
