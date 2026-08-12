@@ -1,6 +1,12 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/auth";
 import { PerformanceOverview } from "@/components/performance/performance-overview";
+import {
+  consistencyFromUniqueDays,
+  preferCanonicalEmployee,
+  rollingExpectedDays,
+  uniqueStandupDays,
+} from "@/lib/standup/consistency";
 
 export default async function PerformancePage() {
   const employee = await requireAuth();
@@ -8,31 +14,28 @@ export default async function PerformancePage() {
 
   const isAdmin = employee.role === "admin" || employee.role === "hr";
 
-  // Fetch all active employees
   const { data: employees } = await supabase
     .from("employees")
-    .select("id, full_name, profile_photo_url, status")
+    .select("id, full_name, profile_photo_url, status, slack_user_id")
     .eq("status", "active");
 
   const now = new Date();
   const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const expectedDays = rollingExpectedDays(30, now);
 
-  // Fetch standup entries (last 30 days)
   const { data: standupEntries } = await supabase
     .from("standup_entries")
     .select("employee_id, performance_score, completed, created_at")
     .gte("created_at", thirtyDaysAgo.toISOString())
     .order("created_at", { ascending: false });
 
-  // Fetch performance scores (supplementary)
   const { data: perfScores } = await supabase
     .from("performance_scores")
     .select("employee_id, avg_score, total_standups, total_tasks_completed, consistency_pct, trend, week_start")
     .order("week_start", { ascending: false })
     .limit(200);
 
-  // Build employee rows from standup data + performance scores
   const employeeRows: {
     employee_id: string;
     employee_name: string;
@@ -42,6 +45,7 @@ export default async function PerformancePage() {
     consistency_pct: number;
     total_tasks_completed: number;
     trend: string;
+    has_slack?: boolean;
   }[] = [];
 
   const empList = employees || [];
@@ -50,6 +54,10 @@ export default async function PerformancePage() {
 
     const empStandups = (standupEntries || []).filter((e) => e.employee_id === emp.id);
     const empScores = (perfScores || []).filter((s) => s.employee_id === emp.id);
+    const hasSlack = Boolean(emp.slack_user_id);
+
+    // Team view: skip shadow accounts with no Slack link and no standups
+    if (isAdmin && emp.id !== employee.id && !hasSlack && empStandups.length === 0) continue;
 
     const totalStandups = empStandups.length;
     const totalTasks = empStandups.reduce(
@@ -63,9 +71,10 @@ export default async function PerformancePage() {
           ? empScores[0].avg_score
           : 0;
 
+    const uniqueDays = uniqueStandupDays(empStandups);
     const consistencyPct =
-      totalStandups > 0
-        ? Math.min(100, Math.round((totalStandups / 20) * 100))
+      uniqueDays > 0
+        ? consistencyFromUniqueDays(uniqueDays, expectedDays)
         : empScores.length > 0
           ? empScores[0].consistency_pct
           : 0;
@@ -88,24 +97,24 @@ export default async function PerformancePage() {
       consistency_pct: consistencyPct,
       total_tasks_completed: taskCompletionPct,
       trend,
+      has_slack: hasSlack,
     });
   }
 
-  employeeRows.sort((a, b) => b.avg_score - a.avg_score);
+  const dedupedRows = preferCanonicalEmployee(employeeRows).sort((a, b) => b.avg_score - a.avg_score);
 
   const overallScore =
-    employeeRows.length > 0
-      ? Math.round(employeeRows.reduce((s, e) => s + e.avg_score, 0) / employeeRows.length)
+    dedupedRows.length > 0
+      ? Math.round(dedupedRows.reduce((s, e) => s + e.avg_score, 0) / dedupedRows.length)
       : 0;
 
   const standupScore = overallScore;
 
   const taskCompletion =
-    employeeRows.length > 0
-      ? Math.round(employeeRows.reduce((s, e) => s + e.total_tasks_completed, 0) / employeeRows.length)
+    dedupedRows.length > 0
+      ? Math.round(dedupedRows.reduce((s, e) => s + e.total_tasks_completed, 0) / dedupedRows.length)
       : 0;
 
-  // Trend data — group standups by week
   const weekBuckets = new Map<string, number[]>();
   for (const entry of standupEntries || []) {
     const d = new Date(entry.created_at);
@@ -123,7 +132,6 @@ export default async function PerformancePage() {
       score: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
     }));
 
-  // Fill in missing weeks if less than 4 data points
   const labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   while (trendData.length < 4) {
     const monthIdx = (now.getMonth() - (3 - trendData.length) + 12) % 12;
@@ -135,10 +143,9 @@ export default async function PerformancePage() {
   const standupScoreTrend = overallScoreTrend;
   const taskCompletionTrend = overallScoreTrend;
 
-  // Insights
   const insights: { type: "positive" | "warning"; title: string; description: string }[] = [];
 
-  const activeEmployees = employeeRows.filter((e) => e.total_standups > 0);
+  const activeEmployees = dedupedRows.filter((e) => e.total_standups > 0);
   if (activeEmployees.length > 0) {
     insights.push({
       type: "positive",
@@ -155,7 +162,7 @@ export default async function PerformancePage() {
     });
   }
 
-  const recentScores = employeeRows.filter((e) => e.trend === "down");
+  const recentScores = dedupedRows.filter((e) => e.trend === "down");
   if (recentScores.length > 0) {
     insights.push({
       type: "warning",
@@ -177,7 +184,7 @@ export default async function PerformancePage() {
   return (
     <div className="space-y-6">
       <PerformanceOverview
-        employees={employeeRows}
+        employees={dedupedRows}
         trendData={trendData}
         overallScore={overallScore}
         overallScoreTrend={overallScoreTrend}

@@ -1,5 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { EmployeePerformanceDetail } from "@/components/performance/employee-performance-detail";
+import {
+  consistencyFromUniqueDays,
+  monthToDateExpectedDays,
+  uniqueStandupDays,
+} from "@/lib/standup/consistency";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -72,9 +77,11 @@ export default async function EmployeePerformancePage({ params }: { params: Prom
     : scores.length > 0 ? scores[scores.length - 1].avg_score : 0;
 
   const totalStandups = (monthStandups || []).length;
+  const uniqueMonthDays = uniqueStandupDays(monthStandups || []);
+  const expectedStandups = monthToDateExpectedDays(now);
   const totalTasks = entries.reduce((s, e) => s + (Array.isArray(e.completed) ? e.completed.length : 0), 0);
   const taskCompletion = entries.length > 0 ? Math.min(100, Math.round((totalTasks / (entries.length * 3)) * 100)) : 0;
-  const consistency = totalStandups > 0 ? Math.min(100, Math.round((totalStandups / 20) * 100)) : 0;
+  const consistency = consistencyFromUniqueDays(uniqueMonthDays, expectedStandups);
 
   let grade = "F";
   let gradeLabel = "Needs Improvement";
@@ -190,7 +197,8 @@ export default async function EmployeePerformancePage({ params }: { params: Prom
       trendData={trendData}
       moduleScores={moduleScores}
       calendarDays={calendarDays}
-      standupsThisMonth={totalStandups}
+      standupsThisMonth={uniqueMonthDays}
+      expectedStandups={expectedStandups}
       recentStandups={recentStandups}
       managerFeedback={latestReview ? {
         text: latestReview.strengths || "No feedback yet.",

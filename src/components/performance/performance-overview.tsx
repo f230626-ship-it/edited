@@ -187,7 +187,7 @@ export function PerformanceOverview({
                   </td>
                   <td className="text-center px-4 py-3.5">
                     <span className="text-sm font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-                      {emp.total_standups} / 20
+                      {emp.total_standups}
                     </span>
                   </td>
                   <td className="text-center px-4 py-3.5">

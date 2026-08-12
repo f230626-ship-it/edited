@@ -1,4 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  consistencyFromUniqueDays,
+  monthToDateExpectedDays,
+  preferCanonicalEmployee,
+  uniqueStandupDays,
+} from "@/lib/standup/consistency";
 
 export interface WeeklyScore {
   employee_id: string;
@@ -48,10 +54,8 @@ export async function calculateWeeklyScores(
       entries.reduce((sum, e) => sum + (e.performance_score || 0), 0) / totalStandups
     );
 
-    // Calculate consistency based on unique calendar days submitted
-    const uniqueDays = new Set(entries.map(e => new Date(e.created_at).toDateString())).size;
-    const workingDays = 5;
-    const consistencyPct = Math.min(100, Math.round((uniqueDays / workingDays) * 100));
+    const uniqueDays = uniqueStandupDays(entries);
+    const consistencyPct = consistencyFromUniqueDays(uniqueDays, 5);
 
     const { data: prevScores } = await supabase
       .from("performance_scores")
@@ -112,13 +116,18 @@ export async function getLatestScores(): Promise<WeeklyScore[]> {
       }
     }
 
-    return Array.from(employeeMap.values());
+    return preferCanonicalEmployee(
+      Array.from(employeeMap.values()).map((row) => ({
+        ...row,
+        has_slack: true,
+      }))
+    );
   }
 
   // Fallback: If performance_scores is empty, query all active employees and calculate real-time metrics from standup_entries
   const { data: employees } = await supabase
     .from("employees")
-    .select("id, full_name, profile_photo_url")
+    .select("id, full_name, profile_photo_url, slack_user_id")
     .eq("status", "active")
     .order("full_name", { ascending: true });
 
@@ -126,6 +135,7 @@ export async function getLatestScores(): Promise<WeeklyScore[]> {
 
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const expectedDays = monthToDateExpectedDays(now);
 
   const employeeIds = employees.map((emp) => emp.id);
 
@@ -137,7 +147,7 @@ export async function getLatestScores(): Promise<WeeklyScore[]> {
     .gte("created_at", startOfMonth);
 
   // Group entries by employee ID in memory
-  const entriesMap = new Map<string, typeof allEntries>();
+  const entriesMap = new Map<string, NonNullable<typeof allEntries>>();
   if (allEntries) {
     allEntries.forEach((entry) => {
       if (!entry.employee_id) return;
@@ -147,10 +157,12 @@ export async function getLatestScores(): Promise<WeeklyScore[]> {
     });
   }
 
-  const leaderboard: WeeklyScore[] = [];
+  const leaderboard: (WeeklyScore & { has_slack?: boolean })[] = [];
 
   for (const emp of employees) {
     const entries = entriesMap.get(emp.id) || [];
+    const hasSlack = Boolean(emp.slack_user_id);
+    if (!hasSlack && entries.length === 0) continue;
 
     const totalStandups = entries.length;
     const avgScore = totalStandups > 0
@@ -158,10 +170,8 @@ export async function getLatestScores(): Promise<WeeklyScore[]> {
       : 0;
     const totalTasks = entries.reduce((sum, e) => sum + (Array.isArray(e.completed) ? e.completed.length : 0), 0);
     const totalBlockers = entries.reduce((sum, e) => sum + (Array.isArray(e.blockers) ? e.blockers.length : 0), 0);
-    
-    // Calculate consistency based on unique calendar days submitted
-    const uniqueDays = new Set(entries.map(e => new Date(e.created_at).toDateString())).size;
-    const consistencyPct = Math.min(100, Math.round((uniqueDays / 20) * 100));
+    const uniqueDays = uniqueStandupDays(entries);
+    const consistencyPct = consistencyFromUniqueDays(uniqueDays, expectedDays);
 
     leaderboard.push({
       employee_id: emp.id,
@@ -173,8 +183,9 @@ export async function getLatestScores(): Promise<WeeklyScore[]> {
       avg_score: avgScore,
       consistency_pct: consistencyPct,
       trend: "stable",
+      has_slack: hasSlack,
     });
   }
 
-  return leaderboard.sort((a, b) => b.avg_score - a.avg_score);
+  return preferCanonicalEmployee(leaderboard).sort((a, b) => b.avg_score - a.avg_score);
 }

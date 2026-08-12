@@ -52,11 +52,12 @@ export function AllStandupsList({
   const [search, setSearch] = useState("");
   const [channelFilter, setChannelFilter] = useState<"all" | "dev" | "sales">("all");
 
+  const query = (typeof search === "string" ? search : "").trim().toLowerCase();
+
   const filtered = standups.filter((s) => {
-    const matchesSearch =
-      !search ||
-      s.employee_name.toLowerCase().includes(search.toLowerCase()) ||
-      s.raw_text.toLowerCase().includes(search.toLowerCase());
+    const name = (s.employee_name || "").toLowerCase();
+    const raw = (s.raw_text || "").toLowerCase();
+    const matchesSearch = !query || name.includes(query) || raw.includes(query);
     const matchesChannel =
       channelFilter === "all" ||
       (channelFilter === "dev" && s.channel_id === "C0ABTT2V884") ||
@@ -96,8 +97,8 @@ export function AllStandupsList({
           <input
             type="text"
             placeholder="Search by name or content..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={typeof search === "string" ? search : ""}
+            onChange={(e) => setSearch(String(e.target.value ?? ""))}
             className="w-full pl-9 pr-4 py-2 rounded-lg bg-muted/60 border border-border/40 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>

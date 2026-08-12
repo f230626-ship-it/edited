@@ -8,9 +8,10 @@ import {
 import {
   ArrowLeft, Calendar, Download, TrendingUp, TrendingDown, Minus,
   CheckCircle2, AlertTriangle, Activity, BarChart3, ClipboardCheck,
-  Target, Star, Quote, ChevronLeft, ChevronRight,
+  Target, Star, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EmployeePerformanceReportDoc } from "@/lib/performance/employee-report-pdf";
 
 interface Props {
   employee: {
@@ -29,6 +30,7 @@ interface Props {
   moduleScores: { name: string; score: number }[];
   calendarDays: { date: number; hasStandup: boolean; score: number; isToday: boolean; isCurrentMonth: boolean }[];
   standupsThisMonth: number;
+  expectedStandups: number;
   recentStandups: { date: string; summary: string; detail: string; score: number }[];
   managerFeedback: { text: string; weaknesses: string | null; improvementAreas: string | null; rating: number; reviewer: string; reviewPeriod: string; date: string } | null;
   nextReviewDate: string;
@@ -69,12 +71,69 @@ const MODULE_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#3b82f6", "#ef4444"];
 
 export function EmployeePerformanceDetail({
   employee, stats, trendData, moduleScores, calendarDays,
-  standupsThisMonth, recentStandups, managerFeedback, nextReviewDate, dateRange,
+  standupsThisMonth, expectedStandups, recentStandups, managerFeedback, nextReviewDate, dateRange,
 }: Props) {
   const [calMonth] = useState(() => {
     const now = new Date();
     return now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   });
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownloadReport() {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const { pdf } = await import("@react-pdf/renderer");
+      const blob = await pdf(
+        <EmployeePerformanceReportDoc
+          data={{
+            employeeName: employee.name,
+            employeeCode: employee.employeeId,
+            designation: employee.designation,
+            department: employee.department,
+            email: employee.email,
+            managerName: employee.managerName,
+            dateRange,
+            overallScore: stats.overallScore,
+            standupScore: stats.standupScore,
+            taskCompletion: stats.taskCompletion,
+            consistency: stats.consistency,
+            grade: stats.grade,
+            gradeLabel: stats.gradeLabel,
+            standupsThisMonth,
+            expectedStandups,
+            recentStandups: recentStandups.map((n) => ({
+              date: n.date,
+              summary: n.summary,
+              score: n.score,
+            })),
+            managerFeedback: managerFeedback
+              ? {
+                  text: managerFeedback.text,
+                  weaknesses: managerFeedback.weaknesses,
+                  improvementAreas: managerFeedback.improvementAreas,
+                  rating: managerFeedback.rating,
+                  reviewPeriod: managerFeedback.reviewPeriod,
+                  date: managerFeedback.date,
+                }
+              : null,
+          }}
+        />
+      ).toBlob();
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const safeName = employee.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+      a.href = url;
+      a.download = `performance-${safeName}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("[performance] Failed to download report:", err);
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -90,9 +149,14 @@ export function EmployeePerformanceDetail({
             <Calendar className="h-3.5 w-3.5" />
             {dateRange}
           </span>
-          <button className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/60 border border-border/40 text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors">
-            <Download className="h-3.5 w-3.5" />
-            Download Report
+          <button
+            type="button"
+            onClick={handleDownloadReport}
+            disabled={downloading}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/60 border border-border/40 text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-60"
+          >
+            {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            {downloading ? "Preparing…" : "Download Report"}
           </button>
         </div>
       </div>
@@ -282,7 +346,7 @@ export function EmployeePerformanceDetail({
               </div>
             ))}
           </div>
-          <p className="text-xs font-semibold text-muted-foreground">{standupsThisMonth} / 20 stand-ups submitted this month</p>
+          <p className="text-xs font-semibold text-muted-foreground">{standupsThisMonth} / {expectedStandups} stand-up days submitted this month</p>
         </div>
 
         {/* Recent Stand-up Notes */}
