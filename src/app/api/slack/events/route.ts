@@ -40,16 +40,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Misconfigured" }, { status: 500 });
     }
 
-    const standupChannels = (process.env.STANDUP_CHANNELS || "")
-      .split(",")
-      .map((c) => c.trim())
-      .filter(Boolean);
-
-    if (standupChannels.length === 0) {
-      console.error("[Slack events] STANDUP_CHANNELS is empty — refusing events");
-      return NextResponse.json({ error: "Misconfigured" }, { status: 500 });
-    }
-
     const rawBody = await req.text();
     const signature = req.headers.get("x-slack-signature");
     const timestamp = req.headers.get("x-slack-request-timestamp");
@@ -71,8 +61,19 @@ export async function POST(req: NextRequest) {
       };
     };
 
+    // Slack URL verification must succeed even before STANDUP_CHANNELS is configured.
     if (body.type === "url_verification") {
       return NextResponse.json({ challenge: body.challenge });
+    }
+
+    const standupChannels = (process.env.STANDUP_CHANNELS || "")
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
+
+    if (standupChannels.length === 0) {
+      console.error("[Slack events] STANDUP_CHANNELS is empty — refusing events");
+      return NextResponse.json({ error: "Misconfigured" }, { status: 500 });
     }
 
     if (body.type !== "event_callback") {
