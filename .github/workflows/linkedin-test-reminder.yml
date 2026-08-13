@@ -1,13 +1,11 @@
-name: LinkedIn Sales Test Reminder (July 2026)
+name: LinkedIn Reminder → AI Testing Channel
 
 on:
-  # One-time schedule for August 13, 2026
-  # 8:30 PM PKT = 15:30 UTC
-  # 9:30 PM PKT = 16:30 UTC
+  # Wednesday 3:00 PM PKT = 10:00 UTC — same as production reminder
   schedule:
-    - cron: "30 15 13 8 *"
-    - cron: "30 16 13 8 *"
-  # Allow manual trigger for testing / recovery
+    - cron: "0 10 * * 3"
+    - cron: "0 10 * * 4"
+  # Allow manual trigger anytime for testing
   workflow_dispatch:
     inputs:
       endpoint:
@@ -21,33 +19,47 @@ on:
 
 jobs:
   reminder:
-    name: Send 8:30 PM Test Reminder
+    name: Send LinkedIn Reminder to AI Testing Channel
     runs-on: ubuntu-latest
-    # Only run on the scheduled date OR manual trigger for reminder
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.endpoint == 'reminder' || (github.event_name == 'schedule' && github.event.schedule == '30 15 13 8 *')
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.endpoint == 'reminder') ||
+      (github.event_name == 'schedule' && github.event.schedule == '0 10 * * 3')
     steps:
-      - name: Trigger test reminder endpoint
+      - name: Trigger LinkedIn test reminder
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          echo "Triggering LinkedIn test reminder for July 2026..."
-          curl -sS -X GET \
+          echo "Triggering LinkedIn reminder → AI Testing channel..."
+          response=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" -X GET \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             -H "Accept: application/json" \
-            https://mindvista-crm.vercel.app/api/cron/linkedin-test-reminder
+            https://edited-one.vercel.app/api/cron/linkedin-test-reminder)
+          echo "$response"
+          status=$(echo "$response" | grep "HTTP_STATUS" | cut -d: -f2)
+          if [ "$status" != "200" ]; then
+            echo "ERROR: Got HTTP $status"
+            exit 1
+          fi
 
   followup:
-    name: Send 9:30 PM Test Follow-up
+    name: Send LinkedIn Follow-up to AI Testing Channel
     runs-on: ubuntu-latest
-    # Only run on the scheduled date OR manual trigger for followup
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.endpoint == 'followup' || (github.event_name == 'schedule' && github.event.schedule == '30 16 13 8 *')
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.endpoint == 'followup') ||
+      (github.event_name == 'schedule' && github.event.schedule == '0 10 * * 4')
     steps:
-      - name: Trigger test follow-up endpoint
+      - name: Trigger LinkedIn test follow-up
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          echo "Triggering LinkedIn test follow-up for July 2026..."
-          curl -sS -X GET \
+          echo "Triggering LinkedIn follow-up → AI Testing channel..."
+          response=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" -X GET \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             -H "Accept: application/json" \
-            https://mindvista-crm.vercel.app/api/cron/linkedin-test-followup
+            https://edited-one.vercel.app/api/cron/linkedin-test-followup)
+          echo "$response"
+          status=$(echo "$response" | grep "HTTP_STATUS" | cut -d: -f2)
+          if [ "$status" != "200" ]; then
+            echo "ERROR: Got HTTP $status"
+            exit 1
+          fi

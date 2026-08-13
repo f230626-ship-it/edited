@@ -39,7 +39,7 @@ jobs:
           curl -sS -X GET \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             -H "Accept: application/json" \
-            https://mindvista-crm.vercel.app/api/cron/linkedin-weekly-reminder
+            https://edited-one.vercel.app/api/cron/linkedin-weekly-reminder
 
   linkedin-followup-reminder:
     name: Thursday LinkedIn Sales Follow-up
@@ -56,7 +56,7 @@ jobs:
           curl -sS -X GET \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             -H "Accept: application/json" \
-            https://mindvista-crm.vercel.app/api/cron/linkedin-followup-reminder
+            https://edited-one.vercel.app/api/cron/linkedin-followup-reminder
 
   monthly-report:
     name: LinkedIn Monthly Report
@@ -73,7 +73,7 @@ jobs:
           curl -sS -X GET \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             -H "Accept: application/json" \
-            https://mindvista-crm.vercel.app/api/cron/monthly-report
+            https://edited-one.vercel.app/api/cron/monthly-report
 
   sync-standups:
     name: Sync Standups from Slack
@@ -90,4 +90,4 @@ jobs:
           curl -sS -X GET \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             -H "Accept: application/json" \
-            https://mindvista-crm.vercel.app/api/cron/sync-standups
+            https://edited-one.vercel.app/api/cron/sync-standups
