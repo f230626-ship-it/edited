@@ -2,9 +2,12 @@ name: LinkedIn Reminder → AI Testing Channel
 
 on:
   # Wednesday 3:00 PM PKT = 10:00 UTC — same as production reminder
+  # Thursday 3:00 PM PKT = 10:00 UTC — follow-up cadence
+  # One-time test: August 14, 2026 at 2:40 AM PKT = 21:40 UTC Aug 13
   schedule:
     - cron: "0 10 * * 3"
     - cron: "0 10 * * 4"
+    - cron: "40 21 13 8 *"
   # Allow manual trigger anytime for testing
   workflow_dispatch:
     inputs:
@@ -23,7 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     if: >
       (github.event_name == 'workflow_dispatch' && github.event.inputs.endpoint == 'reminder') ||
-      (github.event_name == 'schedule' && github.event.schedule == '0 10 * * 3')
+      (github.event_name == 'schedule' && github.event.schedule == '0 10 * * 3') ||
+      (github.event_name == 'schedule' && github.event.schedule == '40 21 13 8 *')
     steps:
       - name: Trigger LinkedIn test reminder
         env:
