@@ -1,0 +1,14 @@
+{
+  "buildCommand": "npm run build",
+  "framework": "nextjs",
+  "installCommand": "npm install",
+  "env": {
+    "NODE_OPTIONS": "--max-old-space-size=4096"
+  },
+  "crons": [
+    {
+      "path": "/api/cron",
+      "schedule": "30 23 * * *"
+    }
+  ]
+}
