@@ -627,8 +627,12 @@ async function getUploadStatus(year: number, month: number): Promise<{
  * Check if ALL required profiles have uploaded for the current month.
  * If yes AND report not already sent → generate report and email admin.
  * Called after every successful upload.
+ * Optional year/month override for one-time test execution.
  */
-export async function checkAllUploadedAndSendReport(): Promise<{
+export async function checkAllUploadedAndSendReport(
+  overrideYear?: number,
+  overrideMonth?: number
+): Promise<{
   allUploaded: boolean;
   reportSent: boolean;
   uploadedCount: number;
@@ -636,7 +640,9 @@ export async function checkAllUploadedAndSendReport(): Promise<{
   missingProfiles: string[];
   error?: string;
 }> {
-  const { year, month } = currentKarachiYearMonth(new Date());
+  const { year, month } = overrideYear && overrideMonth
+    ? { year: overrideYear, month: overrideMonth }
+    : currentKarachiYearMonth(new Date());
   const supabase = createAdminClient();
 
   const status = await getUploadStatus(year, month);
@@ -676,7 +682,7 @@ export async function checkAllUploadedAndSendReport(): Promise<{
   // Generate and send the report immediately
   try {
     const { generateAndSendMonthlyReport } = await import("@/actions/monthly-report");
-    const result = await generateAndSendMonthlyReport(true);
+    const result = await generateAndSendMonthlyReport(true, overrideYear, overrideMonth);
     return {
       allUploaded: true,
       reportSent: result.success,
@@ -700,19 +706,28 @@ export async function checkAllUploadedAndSendReport(): Promise<{
 /**
  * Wednesday 3PM initial reminder: ONE message in the Sales channel
  * listing missing profiles and their responsible handlers.
+ * Optional year/month override for one-time test execution.
  */
-export async function runLinkedInExportReminderCron(force = false): Promise<{
+export async function runLinkedInExportReminderCron(
+  force = false,
+  overrideYear?: number,
+  overrideMonth?: number
+): Promise<{
   sent: number;
   skipped: number;
   errors: string[];
   reason?: string;
 }> {
+  const hasOverride = !!overrideYear && !!overrideMonth;
   // Send reminders on or after the last Friday / last working day of the month until all profiles upload
-  if (!force && !isOnOrAfterLastFridayOfMonth(new Date()) && !isOnOrAfterLastWorkingDayOfMonth(new Date())) {
+  // Skip date guard when explicit override is provided (one-time test)
+  if (!force && !hasOverride && !isOnOrAfterLastFridayOfMonth(new Date()) && !isOnOrAfterLastWorkingDayOfMonth(new Date())) {
     return { sent: 0, skipped: 0, errors: [], reason: "Not yet last Friday of month" };
   }
 
-  const { year, month } = currentKarachiYearMonth(new Date());
+  const { year, month } = hasOverride
+    ? { year: overrideYear!, month: overrideMonth! }
+    : currentKarachiYearMonth(new Date());
   const supabase = createAdminClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://hrms.mindvista.io";
 
@@ -834,14 +849,20 @@ export async function runLinkedInExportReminderCron(force = false): Promise<{
  * Thursday 3PM follow-up: ONE message in the Sales channel
  * listing ONLY profiles that are STILL missing after 24 hours.
  * Also checks if all uploaded and triggers report.
+ * Optional year/month override for one-time test execution.
  */
-export async function runFollowUpReminders(): Promise<{
+export async function runFollowUpReminders(
+  overrideYear?: number,
+  overrideMonth?: number
+): Promise<{
   sent: number;
   errors: string[];
   allUploaded: boolean;
   reportSent: boolean;
 }> {
-  const { year, month } = currentKarachiYearMonth(new Date());
+  const { year, month } = overrideYear && overrideMonth
+    ? { year: overrideYear, month: overrideMonth }
+    : currentKarachiYearMonth(new Date());
   const supabase = createAdminClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://hrms.mindvista.io";
 

@@ -14,27 +14,33 @@ export default async function PerformancePage() {
 
   const isAdmin = employee.role === "admin" || employee.role === "hr";
 
-  const { data: employees } = await supabase
-    .from("employees")
-    .select("id, full_name, profile_photo_url, status, slack_user_id")
-    .eq("status", "active");
-
   const now = new Date();
   const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const expectedDays = rollingExpectedDays(30, now);
 
-  const { data: standupEntries } = await supabase
-    .from("standup_entries")
-    .select("employee_id, performance_score, completed, created_at")
-    .gte("created_at", thirtyDaysAgo.toISOString())
-    .order("created_at", { ascending: false });
+  // Run all queries in parallel for faster page load
+  const [empRes, standupRes, scoresRes] = await Promise.all([
+    supabase
+      .from("employees")
+      .select("id, full_name, profile_photo_url, status, slack_user_id")
+      .eq("status", "active"),
+    supabase
+      .from("standup_entries")
+      .select("employee_id, performance_score, completed, created_at")
+      .gte("created_at", thirtyDaysAgo.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(500),
+    supabase
+      .from("performance_scores")
+      .select("employee_id, avg_score, total_standups, total_tasks_completed, consistency_pct, trend, week_start")
+      .order("week_start", { ascending: false })
+      .limit(200),
+  ]);
 
-  const { data: perfScores } = await supabase
-    .from("performance_scores")
-    .select("employee_id, avg_score, total_standups, total_tasks_completed, consistency_pct, trend, week_start")
-    .order("week_start", { ascending: false })
-    .limit(200);
+  const { data: employees } = empRes;
+  const { data: standupEntries } = standupRes;
+  const { data: perfScores } = scoresRes;
 
   const employeeRows: {
     employee_id: string;
@@ -116,19 +122,30 @@ export default async function PerformancePage() {
       : 0;
 
   const weekBuckets = new Map<string, number[]>();
+  const dailyBuckets = new Map<string, number[]>();
   for (const entry of standupEntries || []) {
     const d = new Date(entry.created_at);
+    // Weekly buckets
     const weekStart = new Date(d);
     weekStart.setDate(d.getDate() - d.getDay() + 1);
-    const key = weekStart.toISOString().split("T")[0];
-    if (!weekBuckets.has(key)) weekBuckets.set(key, []);
-    weekBuckets.get(key)!.push(entry.performance_score || 0);
+    const weekKey = weekStart.toISOString().split("T")[0];
+    if (!weekBuckets.has(weekKey)) weekBuckets.set(weekKey, []);
+    weekBuckets.get(weekKey)!.push(entry.performance_score || 0);
+    // Daily buckets (last 14 days)
+    const dayKey = d.toISOString().split("T")[0];
+    const fourteenDaysAgo = new Date(now);
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+    if (d >= fourteenDaysAgo) {
+      if (!dailyBuckets.has(dayKey)) dailyBuckets.set(dayKey, []);
+      dailyBuckets.get(dayKey)!.push(entry.performance_score || 0);
+    }
   }
 
+  // Monthly view: aggregated by week
   const trendData = Array.from(weekBuckets.entries())
     .slice(-4)
     .map(([weekStart, scores]) => ({
-      month: new Date(weekStart + "T00:00:00Z").toLocaleDateString("en-US", { month: "short" }),
+      month: new Date(weekStart + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric" }),
       score: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
     }));
 
@@ -137,6 +154,14 @@ export default async function PerformancePage() {
     const monthIdx = (now.getMonth() - (3 - trendData.length) + 12) % 12;
     trendData.unshift({ month: labels[monthIdx], score: overallScore });
   }
+
+  // Weekly view: daily data points for last 14 days
+  const weeklyTrendData = Array.from(dailyBuckets.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([dayKey, scores]) => ({
+      month: new Date(dayKey + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      score: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
+    }));
 
   const overallScoreTrend =
     trendData.length >= 2 ? trendData[trendData.length - 1].score - trendData[trendData.length - 2].score : 0;
@@ -186,6 +211,7 @@ export default async function PerformancePage() {
       <PerformanceOverview
         employees={dedupedRows}
         trendData={trendData}
+        weeklyTrendData={weeklyTrendData}
         overallScore={overallScore}
         overallScoreTrend={overallScoreTrend}
         standupScore={standupScore}

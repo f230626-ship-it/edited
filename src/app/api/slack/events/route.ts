@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseStandup } from "@/lib/standup/gemini-parser";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 function verifySlackSignature(
   signingSecret: string,

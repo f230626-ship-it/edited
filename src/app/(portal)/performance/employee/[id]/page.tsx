@@ -20,54 +20,65 @@ export default async function EmployeePerformancePage({ params }: { params: Prom
     .single();
 
   if (!employee) return notFound();
-
-  let managerName = "—";
+  
+  let managerName = "\u2014";
   let managerPhoto: string | null = null;
-  if (employee.manager_id) {
-    const { data: mgr } = await supabase
-      .from("employees")
-      .select("full_name, profile_photo_url")
-      .eq("id", employee.manager_id)
-      .single();
-    if (mgr) {
-      managerName = mgr.full_name;
-      managerPhoto = mgr.profile_photo_url;
-    }
-  }
-
+  
   const now = new Date();
   const ninetyDaysAgo = new Date(now);
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
-  const { data: standups } = await supabase
-    .from("standup_entries")
-    .select("id, performance_score, completed, blockers, in_progress, created_at")
-    .eq("employee_id", id)
-    .gte("created_at", ninetyDaysAgo.toISOString())
-    .order("created_at", { ascending: true });
-
-  const { data: perfScores } = await supabase
-    .from("performance_scores")
-    .select("avg_score, total_standups, total_tasks_completed, consistency_pct, week_start, total_blockers")
-    .eq("employee_id", id)
-    .order("week_start", { ascending: true })
-    .limit(20);
-
-  const { data: reviews } = await supabase
-    .from("performance_reviews")
-    .select("id, review_period, strengths, weaknesses, improvement_areas, rating, created_at")
-    .eq("employee_id", id)
-    .order("created_at", { ascending: false })
-    .limit(5);
-
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const { data: monthStandups } = await supabase
-    .from("standup_entries")
-    .select("created_at, performance_score")
-    .eq("employee_id", id)
-    .gte("created_at", monthStart.toISOString())
-    .lte("created_at", monthEnd.toISOString());
+  
+  // Run all independent queries in parallel
+  const managerPromise = employee.manager_id
+    ? supabase.from("employees").select("full_name, profile_photo_url").eq("id", employee.manager_id).single()
+    : Promise.resolve({ data: null });
+  
+  const [
+    mgrRes,
+    standupRes,
+    scoresRes,
+    reviewsRes,
+    monthStandupRes,
+  ] = await Promise.all([
+    managerPromise,
+    supabase
+      .from("standup_entries")
+      .select("id, performance_score, completed, blockers, in_progress, created_at")
+      .eq("employee_id", id)
+      .gte("created_at", ninetyDaysAgo.toISOString())
+      .order("created_at", { ascending: true })
+      .limit(300),
+    supabase
+      .from("performance_scores")
+      .select("avg_score, total_standups, total_tasks_completed, consistency_pct, week_start, total_blockers")
+      .eq("employee_id", id)
+      .order("week_start", { ascending: true })
+      .limit(20),
+    supabase
+      .from("performance_reviews")
+      .select("id, review_period, strengths, weaknesses, improvement_areas, rating, created_at")
+      .eq("employee_id", id)
+      .order("created_at", { ascending: false })
+      .limit(5),
+    supabase
+      .from("standup_entries")
+      .select("created_at, performance_score")
+      .eq("employee_id", id)
+      .gte("created_at", monthStart.toISOString())
+      .lte("created_at", monthEnd.toISOString()),
+  ]);
+  
+  if (mgrRes.data) {
+    managerName = mgrRes.data.full_name;
+    managerPhoto = mgrRes.data.profile_photo_url;
+  }
+  
+  const { data: standups } = standupRes;
+  const { data: perfScores } = scoresRes;
+  const { data: reviews } = reviewsRes;
+  const { data: monthStandups } = monthStandupRes;
 
   const entries = standups || [];
   const scores = perfScores || [];
@@ -123,6 +134,28 @@ export default async function EmployeePerformancePage({ params }: { params: Prom
     const idx = (now.getMonth() - (3 - trendData.length) + 12) % 12;
     trendData.unshift({ month: trendLabels[idx], overall: avgScore, standup: avgScore, task: taskCompletion, consistency });
   }
+
+  // Daily trend data for weekly view (last 14 days)
+  const dailyMap = new Map<string, { scores: number[]; tasks: number[] }>();
+  const fourteenDaysAgo = new Date(now);
+  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+  for (const entry of entries) {
+    const d = new Date(entry.created_at);
+    if (d < fourteenDaysAgo) continue;
+    const dayKey = d.toISOString().split("T")[0];
+    if (!dailyMap.has(dayKey)) dailyMap.set(dayKey, { scores: [], tasks: [] });
+    dailyMap.get(dayKey)!.scores.push(entry.performance_score || 0);
+    dailyMap.get(dayKey)!.tasks.push(Array.isArray(entry.completed) ? entry.completed.length : 0);
+  }
+  const dailyTrendData = Array.from(dailyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([dayKey, { scores, tasks }]) => ({
+      day: new Date(dayKey + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      overall: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
+      standup: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length),
+      task: Math.min(100, Math.round((tasks.reduce((a, b) => a + b, 0) / (scores.length * 3)) * 100)),
+      consistency: 100,
+    }));
 
   const prevAvg = trendData.length >= 2 ? trendData[trendData.length - 2].overall : avgScore;
   const overallTrend = avgScore - prevAvg;
@@ -195,6 +228,7 @@ export default async function EmployeePerformancePage({ params }: { params: Prom
         gradeLabel,
       }}
       trendData={trendData}
+      dailyTrendData={dailyTrendData}
       moduleScores={moduleScores}
       calendarDays={calendarDays}
       standupsThisMonth={uniqueMonthDays}

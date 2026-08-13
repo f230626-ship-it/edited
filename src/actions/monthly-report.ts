@@ -137,10 +137,18 @@ async function buildPdf(
   return Buffer.from(buffer);
 }
 
-/** Main orchestrator — generates and emails the monthly report. */
-export async function generateAndSendMonthlyReport(force = false): Promise<MonthlyReportResult> {
+/** Main orchestrator — generates and emails the monthly report.
+ *  Optional year/month override for one-time test execution. */
+export async function generateAndSendMonthlyReport(
+  force = false,
+  overrideYear?: number,
+  overrideMonth?: number
+): Promise<MonthlyReportResult> {
   const supabase = createAdminClient();
-  let { year, month } = currentKarachiYearMonth(new Date());
+  const hasOverride = !!overrideYear && !!overrideMonth;
+  let { year, month } = hasOverride
+    ? { year: overrideYear!, month: overrideMonth! }
+    : currentKarachiYearMonth(new Date());
   let label = monthName(year, month);
   const adminEmail = process.env.ADMIN_EMAIL;
 
@@ -164,9 +172,10 @@ export async function generateAndSendMonthlyReport(force = false): Promise<Month
   }
 
   // Find the latest month that actually has stats (fallback from current month)
+  // Skip fallback when override is provided — test must be deterministic
   let stats = await collectMonthStats(supabase, year, month);
   const hasData = stats && stats.some((s) => s.invitesSent > 0 || s.connectionsMade > 0 || s.messagesSent > 0);
-  if (!hasData) {
+  if (!hasOverride && !hasData) {
     const { data: latestStat } = await supabase
       .from("linkedin_profile_period_stats")
       .select("period_year, period_month")

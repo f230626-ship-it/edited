@@ -27,6 +27,7 @@ interface Props {
     grade: string; gradeLabel: string;
   };
   trendData: { month: string; overall: number; standup: number; task: number; consistency: number }[];
+  dailyTrendData?: { day: string; overall: number; standup: number; task: number; consistency: number }[];
   moduleScores: { name: string; score: number }[];
   calendarDays: { date: number; hasStandup: boolean; score: number; isToday: boolean; isCurrentMonth: boolean }[];
   standupsThisMonth: number;
@@ -70,7 +71,7 @@ function scoreBg(s: number) {
 const MODULE_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#3b82f6", "#ef4444"];
 
 export function EmployeePerformanceDetail({
-  employee, stats, trendData, moduleScores, calendarDays,
+  employee, stats, trendData, dailyTrendData, moduleScores, calendarDays,
   standupsThisMonth, expectedStandups, recentStandups, managerFeedback, nextReviewDate, dateRange,
 }: Props) {
   const [calMonth] = useState(() => {
@@ -78,6 +79,7 @@ export function EmployeePerformanceDetail({
     return now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   });
   const [downloading, setDownloading] = useState(false);
+  const [viewMode, setViewMode] = useState<"Monthly" | "Weekly">("Weekly");
 
   async function handleDownloadReport() {
     if (downloading) return;
@@ -249,8 +251,13 @@ export function EmployeePerformanceDetail({
         <div className="lg:col-span-2 rounded-2xl border border-border/50 bg-card p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold">Performance Trend</h3>
-            <select className="appearance-none px-2 py-1 rounded-lg bg-muted/60 border border-border/40 text-xs font-semibold cursor-pointer">
-              <option>Monthly</option>
+            <select
+              value={viewMode}
+              onChange={(e) => setViewMode(e.target.value as "Monthly" | "Weekly")}
+              className="appearance-none px-2 py-1 rounded-lg bg-muted/60 border border-border/40 text-xs font-semibold cursor-pointer"
+            >
+              <option value="Weekly">Weekly</option>
+              <option value="Monthly">Monthly</option>
             </select>
           </div>
           <div className="flex flex-wrap gap-4 text-[10px] font-medium text-muted-foreground">
@@ -260,10 +267,10 @@ export function EmployeePerformanceDetail({
             <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-purple-500" />Consistency</span>
           </div>
           <div className="h-[220px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trendData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+              <LineChart data={(viewMode === "Weekly" && dailyTrendData?.length ? dailyTrendData : trendData) as any} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94a3b9" }} axisLine={false} tickLine={false} />
+                <XAxis dataKey={viewMode === "Weekly" ? "day" : "month"} tick={{ fontSize: 11, fill: "#94a3b9" }} axisLine={false} tickLine={false} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#94a3b9" }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", fontSize: "11px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }} />
                 <Line type="monotone" dataKey="overall" stroke="#6366f1" strokeWidth={2} dot={{ r: 4, fill: "#6366f1", strokeWidth: 2, stroke: "#fff" }} />

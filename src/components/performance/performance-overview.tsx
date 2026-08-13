@@ -34,6 +34,7 @@ interface Insight {
 interface Props {
   employees: EmployeeRow[];
   trendData: TrendPoint[];
+  weeklyTrendData?: TrendPoint[];
   overallScore: number;
   overallScoreTrend: number;
   standupScore: number;
@@ -66,11 +67,11 @@ function TrendBadge({ value }: { value: number }) {
 }
 
 export function PerformanceOverview({
-  employees, trendData, overallScore, overallScoreTrend,
+  employees, trendData, weeklyTrendData, overallScore, overallScoreTrend,
   standupScore, standupScoreTrend, taskCompletion, taskCompletionTrend,
   insights, dateRange, isDark,
 }: Props) {
-  const [trendGranularity, setTrendGranularity] = useState<"Monthly" | "Weekly">("Monthly");
+  const [trendGranularity, setTrendGranularity] = useState<"Monthly" | "Weekly">("Weekly");
 
   const gridColor = isDark ? "#1e293b" : "#f1f5f9";
   const tickColor = isDark ? "#64748b" : "#94a3b9";
@@ -128,8 +129,8 @@ export function PerformanceOverview({
           </select>
         </div>
         <div className="h-[280px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trendData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <LineChart data={trendGranularity === "Weekly" && weeklyTrendData?.length ? weeklyTrendData : trendData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 12, fill: tickColor }} axisLine={false} tickLine={false} />
               <YAxis domain={[0, 100]} tick={{ fontSize: 12, fill: tickColor }} axisLine={false} tickLine={false} />
@@ -166,9 +167,9 @@ export function PerformanceOverview({
             </thead>
             <tbody className="divide-y divide-border/30">
               {employees.map((emp) => (
-                <tr key={emp.employee_id} className="hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => window.location.href = `/performance/employee/${emp.employee_id}`}>
+                <tr key={emp.employee_id} className="hover:bg-muted/30 transition-colors">
                   <td className="px-6 py-3.5">
-                    <div className="flex items-center gap-3">
+                    <a href={`/performance/employee/${emp.employee_id}`} className="flex items-center gap-3 no-underline">
                       <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-sm font-bold text-muted-foreground overflow-hidden border border-border/30 shrink-0">
                         {emp.employee_photo ? (
                           <img src={emp.employee_photo} alt={emp.employee_name} className="h-full w-full object-cover" />
@@ -176,8 +177,8 @@ export function PerformanceOverview({
                           emp.employee_name.split(" ").map((n) => n[0]).join("").slice(0, 2)
                         )}
                       </div>
-                      <span className="font-semibold text-sm">{emp.employee_name}</span>
-                    </div>
+                      <span className="font-semibold text-sm text-foreground">{emp.employee_name}</span>
+                    </a>
                   </td>
                   <td className="text-center px-4 py-3.5">
                     <span className={cn("text-sm font-bold tabular-nums",

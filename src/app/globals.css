@@ -216,6 +216,7 @@
 
 .glass-panel {
   background: rgba(var(--card), 0.7);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(var(--border), 0.4);
 }
@@ -595,6 +596,7 @@
 
 /* ── Premium Glassmorphic Neon Glowing Cards ── */
 .glass-card-base {
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -603,6 +605,7 @@
 
 /* Blue Glow */
 .glass-card-glow-blue {
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -621,6 +624,7 @@
 
 /* Green Glow */
 .glass-card-glow-green {
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -639,6 +643,7 @@
 
 /* Amber/Orange Glow */
 .glass-card-glow-amber {
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -657,6 +662,7 @@
 
 /* Violet/Purple Glow */
 .glass-card-glow-violet {
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -675,6 +681,7 @@
 
 /* Primary/Brand Glow */
 .glass-card-glow-primary {
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;

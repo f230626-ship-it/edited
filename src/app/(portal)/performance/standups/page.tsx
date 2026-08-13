@@ -9,26 +9,29 @@ export default async function StandupsPage({ searchParams }: { searchParams: Pro
   await requireAuth();
   const supabase = createAdminClient();
 
-  const { data: employees } = await supabase
-    .from("employees")
-    .select("id, full_name, profile_photo_url, status");
+  let standupQuery = supabase
+    .from("standup_entries")
+    .select("id, employee_id, slack_user_id, raw_text, completed, blockers, in_progress, performance_score, channel_id, created_at")
+    .order("created_at", { ascending: false })
+    .limit(1000);
+
+  if (employeeId) {
+    standupQuery = standupQuery.eq("employee_id", employeeId);
+  }
+
+  // Run queries in parallel
+  const [empRes, standupRes] = await Promise.all([
+    supabase.from("employees").select("id, full_name, profile_photo_url, status"),
+    standupQuery,
+  ]);
+
+  const { data: employees } = empRes;
+  const { data: standups } = standupRes;
 
   const empMap = new Map<string, { name: string; photo: string | null }>();
   (employees || []).forEach((e) => {
     empMap.set(e.id, { name: e.full_name, photo: e.profile_photo_url });
   });
-
-  let query = supabase
-    .from("standup_entries")
-    .select("id, employee_id, slack_user_id, raw_text, completed, blockers, in_progress, performance_score, channel_id, created_at")
-    .order("created_at", { ascending: false })
-    .limit(200);
-
-  if (employeeId) {
-    query = query.eq("employee_id", employeeId);
-  }
-
-  const { data: standups } = await query;
 
   const enriched = (standups || []).map((s) => {
     const emp = s.employee_id ? empMap.get(s.employee_id) : null;

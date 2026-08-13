@@ -66,7 +66,7 @@ export function Header({
   };
 
   return (
-    <header className="sticky top-0 z-50 flex h-12 sm:h-13 md:h-[52px] items-center justify-between border-b border-border/50 bg-background/70 px-2.5 sm:px-3 md:px-4 lg:px-5 xl:px-6 backdrop-blur-xl shadow-[0_1px_3px_0_rgb(0,0,0,0.02)]">
+    <header className="sticky top-0 z-50 flex h-12 sm:h-13 md:h-[52px] items-center justify-between border-b border-border/50 bg-background/95 px-2.5 sm:px-3 md:px-4 lg:px-5 xl:px-6 shadow-[0_1px_3px_0_rgb(0,0,0,0.02)]">
       <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
         <button
           onClick={handleMenuClick}

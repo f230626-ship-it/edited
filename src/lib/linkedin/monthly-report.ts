@@ -196,12 +196,18 @@ async function buildPdf(
   return Buffer.from(await renderToBuffer(element));
 }
 
-/** Core orchestrator — used by cron and authenticated admin action only. */
+/** Core orchestrator — used by cron and authenticated admin action only.
+ *  Optional year/month override for one-time test execution. */
 export async function runMonthlyReportGeneration(
-  force = false
+  force = false,
+  overrideYear?: number,
+  overrideMonth?: number
 ): Promise<MonthlyReportResult> {
   const supabase = createAdminClient();
-  let { year, month } = currentKarachiYearMonth(new Date());
+  const hasOverride = !!overrideYear && !!overrideMonth;
+  let { year, month } = hasOverride
+    ? { year: overrideYear!, month: overrideMonth! }
+    : currentKarachiYearMonth(new Date());
   let label = monthName(year, month);
   const adminEmail = process.env.ADMIN_EMAIL;
 
@@ -233,7 +239,8 @@ export async function runMonthlyReportGeneration(
   const hasData =
     monthData &&
     monthData.profiles.some((s) => s.invitesSent > 0 || s.connectionsMade > 0 || s.messagesSent > 0);
-  if (!hasData) {
+  // Skip fallback when override is provided — test must be deterministic
+  if (!hasOverride && !hasData) {
     const { data: latestStat } = await supabase
       .from("linkedin_profile_period_stats")
       .select("period_year, period_month")

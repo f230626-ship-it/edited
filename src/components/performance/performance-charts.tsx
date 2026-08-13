@@ -203,7 +203,7 @@ export function PerformanceCharts({ goals, reviews, salesLogs = [] }: Performanc
           accent="#f59e0b"
         >
           <div className="h-[260px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <AreaChart data={ratingHistoryData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
                 <defs>
                   <linearGradient id="areaRatingFill" x1="0" y1="0" x2="0" y2="1">
@@ -266,7 +266,7 @@ export function PerformanceCharts({ goals, reviews, salesLogs = [] }: Performanc
           accent="#3b82f6"
         >
           <div className="h-[240px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <LineChart data={salesTrendData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="2 4" stroke={axisColor} vertical={false} />
                 <XAxis
@@ -316,7 +316,7 @@ export function PerformanceCharts({ goals, reviews, salesLogs = [] }: Performanc
           accent="#10b981"
         >
           <div className="h-[240px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <BarChart data={goalCompletionData} margin={{ top: 10, right: 5, left: -25, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="2 4" stroke={axisColor} vertical={false} />
                 <XAxis
