@@ -6,13 +6,13 @@ import {
 } from "@/actions/linkedin-outreach";
 
 /**
- * ONE-TIME TEST ONLY — August 13, 2026 at 8:30 PM PKT (15:30 UTC).
- * Runs the same logic as the Wednesday 3 PM Sales channel reminder,
- * but for July 2026 instead of the current month.
+ * LinkedIn Export Reminder — AI Testing Channel (C0BNR2HLVA6).
+ * Triggered by GitHub Actions on a recurring schedule (Hobby plan workaround):
+ *   - Wednesday 3:00 PM PKT (10:00 UTC) — same cadence as production reminder
+ *   - Thursday 3:00 PM PKT (10:00 UTC) — follow-up cadence
  *
- * vercel.json: 30 15 13 8 * (fires only on Aug 13)
- *
- * Production schedule (Wed 3 PM / Thu 3 PM) is NOT affected.
+ * See: .github/workflows/linkedin-test-reminder.yml
+ * Production Sales channel reminders are handled separately.
  */
 export async function GET(req: NextRequest) {
   return handle(req);
