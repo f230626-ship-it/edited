@@ -1,0 +1,53 @@
+name: LinkedIn Sales Test Reminder (July 2026)
+
+on:
+  # One-time schedule for August 13, 2026
+  # 8:30 PM PKT = 15:30 UTC
+  # 9:30 PM PKT = 16:30 UTC
+  schedule:
+    - cron: "30 15 13 8 *"
+    - cron: "30 16 13 8 *"
+  # Allow manual trigger for testing / recovery
+  workflow_dispatch:
+    inputs:
+      endpoint:
+        description: "Which endpoint to trigger"
+        required: true
+        default: "reminder"
+        type: choice
+        options:
+          - reminder
+          - followup
+
+jobs:
+  reminder:
+    name: Send 8:30 PM Test Reminder
+    runs-on: ubuntu-latest
+    # Only run on the scheduled date OR manual trigger for reminder
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.endpoint == 'reminder' || (github.event_name == 'schedule' && github.event.schedule == '30 15 13 8 *')
+    steps:
+      - name: Trigger test reminder endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          echo "Triggering LinkedIn test reminder for July 2026..."
+          curl -sS -X GET \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Accept: application/json" \
+            https://mindvista-crm.vercel.app/api/cron/linkedin-test-reminder
+
+  followup:
+    name: Send 9:30 PM Test Follow-up
+    runs-on: ubuntu-latest
+    # Only run on the scheduled date OR manual trigger for followup
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.endpoint == 'followup' || (github.event_name == 'schedule' && github.event.schedule == '30 16 13 8 *')
+    steps:
+      - name: Trigger test follow-up endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          echo "Triggering LinkedIn test follow-up for July 2026..."
+          curl -sS -X GET \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Accept: application/json" \
+            https://mindvista-crm.vercel.app/api/cron/linkedin-test-followup

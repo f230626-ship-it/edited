@@ -23,24 +23,8 @@
       "schedule": "0 10 * * 4"
     },
     {
-      "path": "/api/cron/monthly-report",
-      "schedule": "0 9 * * 1-5"
-    },
-    {
       "path": "/api/cron/payroll-reminder",
       "schedule": "0 4 * * *"
-    },
-    {
-      "path": "/api/cron/sync-standups",
-      "schedule": "0 9,13,18 * * 1-5"
-    },
-    {
-      "path": "/api/cron/linkedin-test-reminder",
-      "schedule": "30 15 13 8 *"
-    },
-    {
-      "path": "/api/cron/linkedin-test-followup",
-      "schedule": "30 16 13 8 *"
     }
   ]
 }

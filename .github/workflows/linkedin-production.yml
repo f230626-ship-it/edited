@@ -1,0 +1,93 @@
+name: LinkedIn Production Automation
+
+on:
+  schedule:
+    # Wednesday 3:00 PM PKT = 10:00 UTC — initial Sales reminder
+    - cron: "0 10 * * 3"
+    # Thursday 3:00 PM PKT = 10:00 UTC — follow-up reminder
+    - cron: "0 10 * * 4"
+    # Weekdays 2:00 PM PKT = 9:00 UTC — monthly report check
+    - cron: "0 9 * * 1-5"
+    # Standup sync: 9 AM, 1 PM, 6 PM PKT = 4 AM, 8 AM, 1 PM UTC
+    - cron: "0 4,8,13 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      endpoint:
+        description: "Which endpoint to trigger"
+        required: true
+        default: "linkedin-weekly-reminder"
+        type: choice
+        options:
+          - linkedin-weekly-reminder
+          - linkedin-followup-reminder
+          - monthly-report
+          - sync-standups
+
+jobs:
+  linkedin-weekly-reminder:
+    name: Wednesday LinkedIn Sales Reminder
+    runs-on: ubuntu-latest
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.endpoint == 'linkedin-weekly-reminder') ||
+      (github.event_name == 'schedule' && github.event.schedule == '0 10 * * 3')
+    steps:
+      - name: Trigger weekly reminder
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          echo "Triggering LinkedIn weekly reminder..."
+          curl -sS -X GET \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Accept: application/json" \
+            https://mindvista-crm.vercel.app/api/cron/linkedin-weekly-reminder
+
+  linkedin-followup-reminder:
+    name: Thursday LinkedIn Sales Follow-up
+    runs-on: ubuntu-latest
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.endpoint == 'linkedin-followup-reminder') ||
+      (github.event_name == 'schedule' && github.event.schedule == '0 10 * * 4')
+    steps:
+      - name: Trigger follow-up reminder
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          echo "Triggering LinkedIn follow-up reminder..."
+          curl -sS -X GET \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Accept: application/json" \
+            https://mindvista-crm.vercel.app/api/cron/linkedin-followup-reminder
+
+  monthly-report:
+    name: LinkedIn Monthly Report
+    runs-on: ubuntu-latest
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.endpoint == 'monthly-report') ||
+      (github.event_name == 'schedule' && github.event.schedule == '0 9 * * 1-5')
+    steps:
+      - name: Trigger monthly report
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          echo "Triggering LinkedIn monthly report..."
+          curl -sS -X GET \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Accept: application/json" \
+            https://mindvista-crm.vercel.app/api/cron/monthly-report
+
+  sync-standups:
+    name: Sync Standups from Slack
+    runs-on: ubuntu-latest
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.endpoint == 'sync-standups') ||
+      (github.event_name == 'schedule' && github.event.schedule == '0 4,8,13 * * 1-5')
+    steps:
+      - name: Trigger standup sync
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          echo "Triggering standup sync..."
+          curl -sS -X GET \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Accept: application/json" \
+            https://mindvista-crm.vercel.app/api/cron/sync-standups
