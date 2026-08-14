@@ -6,8 +6,8 @@ on:
     # runLinkedInExportReminderCron() internally checks isOnOrAfterLastFridayOfMonth()
     # so it only fires on the LAST FRIDAY of each month — all others are skipped.
     - cron: "0 10 * * 5"
-    # Thursday 3:00 PM PKT = 10:00 UTC — follow-up reminder
-    - cron: "0 10 * * 4"
+    # Saturday 3:00 PM PKT = 10:00 UTC — follow-up reminder (24 hours after last Friday)
+    - cron: "0 10 * * 6"
     # Weekdays 2:00 PM PKT = 9:00 UTC — monthly report check
     - cron: "0 9 * * 1-5"
     # Standup sync: 9 AM, 1 PM, 6 PM PKT = 4 AM, 8 AM, 1 PM UTC
@@ -44,11 +44,11 @@ jobs:
             https://edited-one.vercel.app/api/cron/linkedin-weekly-reminder
 
   linkedin-followup-reminder:
-    name: Thursday LinkedIn Sales Follow-up
+    name: Saturday LinkedIn Sales Follow-up (24h after last-Friday reminder)
     runs-on: ubuntu-latest
     if: >
       (github.event_name == 'workflow_dispatch' && github.event.inputs.endpoint == 'linkedin-followup-reminder') ||
-      (github.event_name == 'schedule' && github.event.schedule == '0 10 * * 4')
+      (github.event_name == 'schedule' && github.event.schedule == '0 10 * * 6')
     steps:
       - name: Trigger follow-up reminder
         env:

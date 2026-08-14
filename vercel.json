@@ -20,7 +20,7 @@
     },
     {
       "path": "/api/cron/linkedin-followup-reminder",
-      "schedule": "0 10 * * 4"
+      "schedule": "0 10 * * 6"
     },
     {
       "path": "/api/cron/payroll-reminder",
