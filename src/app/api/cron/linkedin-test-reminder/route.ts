@@ -6,13 +6,13 @@ import {
 } from "@/actions/linkedin-outreach";
 
 /**
- * LinkedIn Export Reminder — AI Testing Channel (C0BNR2HLVA6).
- * Triggered by GitHub Actions on a recurring schedule (Hobby plan workaround):
- *   - Wednesday 3:00 PM PKT (10:00 UTC) — same cadence as production reminder
- *   - Thursday 3:00 PM PKT (10:00 UTC) — follow-up cadence
+ * LinkedIn Export Reminder — Sales Channel (July 2026 Test).
+ * Triggered by GitHub Actions at 4:30 PM PKT (11:30 UTC) on Aug 14, 2026.
+ * Reports for July 2026 — uses force=true + explicit year/month to bypass date guard.
  *
+ * Follow-up fires 1 hour later (5:30 PM PKT = 12:30 UTC) via linkedin-test-followup route.
  * See: .github/workflows/linkedin-test-reminder.yml
- * Production Sales channel reminders are handled separately.
+ * Production Sales channel reminders use linkedin-weekly-reminder (last Friday of month).
  */
 export async function GET(req: NextRequest) {
   return handle(req);

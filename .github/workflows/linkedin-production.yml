@@ -2,8 +2,10 @@ name: LinkedIn Production Automation
 
 on:
   schedule:
-    # Wednesday 3:00 PM PKT = 10:00 UTC — initial Sales reminder
-    - cron: "0 10 * * 3"
+    # Every Friday 3:00 PM PKT = 10:00 UTC
+    # runLinkedInExportReminderCron() internally checks isOnOrAfterLastFridayOfMonth()
+    # so it only fires on the LAST FRIDAY of each month — all others are skipped.
+    - cron: "0 10 * * 5"
     # Thursday 3:00 PM PKT = 10:00 UTC — follow-up reminder
     - cron: "0 10 * * 4"
     # Weekdays 2:00 PM PKT = 9:00 UTC — monthly report check
@@ -25,11 +27,11 @@ on:
 
 jobs:
   linkedin-weekly-reminder:
-    name: Wednesday LinkedIn Sales Reminder
+    name: Friday LinkedIn Sales Reminder (last Friday of month only)
     runs-on: ubuntu-latest
     if: >
       (github.event_name == 'workflow_dispatch' && github.event.inputs.endpoint == 'linkedin-weekly-reminder') ||
-      (github.event_name == 'schedule' && github.event.schedule == '0 10 * * 3')
+      (github.event_name == 'schedule' && github.event.schedule == '0 10 * * 5')
     steps:
       - name: Trigger weekly reminder
         env:

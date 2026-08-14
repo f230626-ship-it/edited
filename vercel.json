@@ -16,7 +16,7 @@
     },
     {
       "path": "/api/cron/linkedin-weekly-reminder",
-      "schedule": "0 10 * * 3"
+      "schedule": "0 10 * * 5"
     },
     {
       "path": "/api/cron/linkedin-followup-reminder",

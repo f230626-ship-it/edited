@@ -6,19 +6,18 @@ import {
 } from "@/actions/linkedin-outreach";
 
 /**
- * ONE-TIME TEST ONLY — August 13, 2026 at 9:30 PM PKT (16:30 UTC).
- * Runs the same logic as the Thursday 3 PM Sales channel follow-up,
+ * ONE-TIME TEST ONLY — August 14, 2026 at 5:30 PM PKT (12:30 UTC).
+ * Fires exactly 1 hour after the 4:30 PM PKT test reminder.
+ * Runs the same logic as the production follow-up,
  * but for July 2026 instead of the current month.
  *
  * Performs a FRESH database check — only profiles STILL missing
- * after the 8:30 PM reminder are included.
+ * after the 4:30 PM reminder are included in the follow-up message.
  *
  * If all 7 profiles are now complete, triggers report generation
  * and does NOT send a follow-up reminder.
  *
- * vercel.json: 30 16 13 8 * (fires only on Aug 13)
- *
- * Production schedule (Wed 3 PM / Thu 3 PM) is NOT affected.
+ * Production schedule (last Friday of month) is NOT affected.
  */
 export async function GET(req: NextRequest) {
   return handle(req);

@@ -1,13 +1,12 @@
-name: LinkedIn Reminder → AI Testing Channel
+name: LinkedIn Reminder → Sales Channel (Test)
 
 on:
-  # Wednesday 3:00 PM PKT = 10:00 UTC — same as production reminder
-  # Thursday 3:00 PM PKT = 10:00 UTC — follow-up cadence
-  # One-time test: August 14, 2026 at 2:40 AM PKT = 21:40 UTC Aug 13
+  # Test schedule — August 14, 2026
+  # First reminder:  4:30 PM PKT = 11:30 UTC
+  # Follow-up:       5:30 PM PKT = 12:30 UTC (exactly 1 hour after first reminder)
   schedule:
-    - cron: "0 10 * * 3"
-    - cron: "0 10 * * 4"
-    - cron: "40 21 13 8 *"
+    - cron: "30 11 14 8 *"
+    - cron: "30 12 14 8 *"
   # Allow manual trigger anytime for testing
   workflow_dispatch:
     inputs:
@@ -22,18 +21,17 @@ on:
 
 jobs:
   reminder:
-    name: Send LinkedIn Reminder to AI Testing Channel
+    name: Send LinkedIn Reminder to Sales Channel (July 2026 Test)
     runs-on: ubuntu-latest
     if: >
       (github.event_name == 'workflow_dispatch' && github.event.inputs.endpoint == 'reminder') ||
-      (github.event_name == 'schedule' && github.event.schedule == '0 10 * * 3') ||
-      (github.event_name == 'schedule' && github.event.schedule == '40 21 13 8 *')
+      (github.event_name == 'schedule' && github.event.schedule == '30 11 14 8 *')
     steps:
       - name: Trigger LinkedIn test reminder
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          echo "Triggering LinkedIn reminder → AI Testing channel..."
+          echo "Triggering LinkedIn reminder → Sales channel (July 2026 test)..."
           response=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" -X GET \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             -H "Accept: application/json" \
@@ -46,17 +44,17 @@ jobs:
           fi
 
   followup:
-    name: Send LinkedIn Follow-up to AI Testing Channel
+    name: Send LinkedIn Follow-up to Sales Channel (July 2026 Test — 1 hour later)
     runs-on: ubuntu-latest
     if: >
       (github.event_name == 'workflow_dispatch' && github.event.inputs.endpoint == 'followup') ||
-      (github.event_name == 'schedule' && github.event.schedule == '0 10 * * 4')
+      (github.event_name == 'schedule' && github.event.schedule == '30 12 14 8 *')
     steps:
       - name: Trigger LinkedIn test follow-up
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          echo "Triggering LinkedIn follow-up → AI Testing channel..."
+          echo "Triggering LinkedIn follow-up → Sales channel (July 2026 test, fresh DB check)..."
           response=$(curl -sS -w "\nHTTP_STATUS:%{http_code}" -X GET \
             -H "Authorization: Bearer ${CRON_SECRET}" \
             -H "Accept: application/json" \
