@@ -222,11 +222,7 @@ export async function calculatePayrollPeriod(
         warnings.map((w) => ({
           payroll_period_id: periodId,
           employee_id: w.employeeId ?? null,
-          severity: w.code === "CURRENCY_MISMATCH" || w.code === "NO_COMMISSION_RULES"
-            ? "CRITICAL"
-            : w.code === "PROJECT_VALUE_FALLBACK"
-              ? "WARNING"
-              : "WARNING",
+          severity: "WARNING",
           code: w.code,
           message: w.message,
           entity_type: w.projectId ? "project" : null,

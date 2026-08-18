@@ -11,6 +11,7 @@ import { writePayrollAudit } from "@/lib/payroll/audit";
 import { monthBounds } from "@/lib/payroll/compensation";
 import { calculatePayrollPeriod } from "@/lib/payroll/payroll-engine";
 import { renderSalarySlipPdf } from "@/lib/payroll/salary-slip";
+import { renderInvoicePdf } from "@/lib/payroll/invoice-pdf";
 import { sendEmail } from "@/lib/email";
 
 function revalidatePayroll(periodId?: string) {
@@ -349,7 +350,7 @@ export async function getPayrollPeriodDetail(periodId: string) {
 
   const { data: anomalies } = await admin
     .from("payroll_anomalies")
-    .select("*, employee:employees(id, full_name)")
+    .select("*, employee:employees!payroll_anomalies_employee_id_fkey(id, full_name)")
     .eq("payroll_period_id", periodId)
     .order("severity")
     .order("created_at", { ascending: false });
@@ -610,14 +611,157 @@ export async function generateSalarySlips(periodId: string) {
   return { success: true, generated };
 }
 
-// ─── Email queue ─────────────────────────────────────────────────────────────
+// ─── Invoice Generation ─────────────────────────────────────────────────────────────
+
+export async function generateInvoice(periodId: string) {
+  const actor = await requirePayrollApprover();
+  const admin = createAdminClient();
+
+  const { data: period } = await admin
+    .from("payroll_periods")
+    .select("*")
+    .eq("id", periodId)
+    .single();
+  if (!period) return { error: "Period not found" };
+  if (!["APPROVED", "PROCESSING", "COMPLETED"].includes(period.status)) {
+    return { error: "Approve payroll before generating invoices" };
+  }
+
+  const { data: settings } = await admin
+    .from("payroll_settings")
+    .select("*")
+    .eq("id", "default")
+    .maybeSingle();
+
+  const { data: records } = await admin
+    .from("payroll_records")
+    .select(
+      "*, employee:employees(id, full_name, email, employee_code, designation), line_items:payroll_line_items(*)"
+    )
+    .eq("payroll_period_id", periodId);
+
+  let generated = 0;
+  for (const r of records || []) {
+    const emp = r.employee as {
+      full_name: string;
+      employee_code: string | null;
+      designation: string;
+    };
+    const lines = (r.line_items || []) as {
+      line_type: string;
+      description: string;
+      amount: number;
+    }[];
+
+    // Build invoice line items from payroll line items (earnings only)
+    const earningsLines = lines
+      .filter((l) => ["base_salary", "allowance", "commission", "bonus"].includes(l.line_type))
+      .map((l) => ({
+        description: l.description,
+        amount: Number(l.amount),
+      }));
+
+    const total = earningsLines.reduce((sum, item) => sum + item.amount, 0);
+
+    const pdf = await renderInvoicePdf({
+      companyName: settings?.company_name || "MindVista",
+      companyAddress: settings?.company_address,
+      employeeName: emp.full_name,
+      designation: emp.designation,
+      periodLabel: period.label,
+      payDate: period.pay_date,
+      currency: r.currency || "USD",
+      lineItems: earningsLines,
+      total,
+    });
+
+    // Store invoice in database
+    const pdfBase64 = pdf.toString("base64");
+    const invoicePdfName = `payroll-${r.employee_id}-${period.label.replace(/\s+/g, "-")}.pdf`;
+
+    const { data: invoice, error: invErr } = await admin
+      .from("invoices")
+      .upsert(
+        {
+          employee_id: r.employee_id,
+          payroll_period_id: periodId,
+          invoice_number: `PAY-${period.label.replace(/\s+/g, "-")}-${r.employee_id}`,
+          client_name: emp.full_name,
+          amount: total,
+          currency: r.currency || "USD",
+          status: "draft",
+          notes: `Payroll invoice for ${period.label}`,
+          pdf_base64: pdfBase64,
+          invoice_pdf_name: invoicePdfName,
+        },
+        { onConflict: "employee_id,payroll_period_id" }
+      )
+      .select("id")
+      .single();
+
+    if (invErr) {
+      console.error("[invoice]", invErr.message);
+      continue;
+    }
+
+    // Queue email with invoice attachment
+    const toEmail = (r.employee as { email?: string }).email;
+    if (toEmail && invoice) {
+      const idempotencyKey = `payroll-invoice:${periodId}:${r.employee_id}`;
+      await admin.from("payroll_email_queue").upsert(
+        {
+          payroll_period_id: periodId,
+          employee_id: r.employee_id,
+          invoice_id: invoice.id,
+          to_email: toEmail,
+          subject: `Your Payroll Invoice – ${period.label}`,
+          body_text: [
+            `Hello ${emp.full_name},`,
+            ``,
+            `Your payroll invoice for ${period.label} is attached.`,
+            ``,
+            `Total: ${r.currency} ${total.toLocaleString()}`,
+            `Pay Date: ${period.pay_date}`,
+            ``,
+            `Regards,`,
+            `${settings?.company_name || "MindVista"} HR`,
+          ].join("\n"),
+          body_html: `<p>Hello ${emp.full_name},</p><p>Your payroll invoice for <strong>${period.label}</strong> is attached.</p><p>Total: <strong>${r.currency} ${total.toLocaleString()}</strong><br/>Pay Date: ${period.pay_date}</p><p>Regards,<br/>${settings?.company_name || "MindVista"} HR</p>`,
+          status: "READY",
+          idempotency_key: idempotencyKey,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "idempotency_key" }
+      );
+    }
+    generated += 1;
+  }
+
+  await admin
+    .from("payroll_periods")
+    .update({ status: "PROCESSING", updated_at: new Date().toISOString() })
+    .eq("id", periodId);
+
+  await writePayrollAudit({
+    actorId: actor.id,
+    action: "invoices.generate",
+    entityType: "payroll_periods",
+    entityId: periodId,
+    newValue: { generated },
+  });
+  revalidatePayroll(periodId);
+  revalidatePath("/admin/payroll/emails");
+  return { success: true, generated };
+}
+
+// ─── Commission rules ────────────────────────────────────────────────────────
 
 export async function listPayrollEmailQueue(periodId?: string) {
   await requirePayrollAccess();
   const admin = createAdminClient();
   let q = admin
     .from("payroll_email_queue")
-    .select("*, employee:employees(id, full_name, email)")
+    .select("*, employee:employees!employee_id(id, full_name, email)")
     .order("created_at", { ascending: false });
   if (periodId) q = q.eq("payroll_period_id", periodId);
   const { data, error } = await q.limit(500);
@@ -671,7 +815,7 @@ export async function sendApprovedPayrollEmails(periodId: string) {
 
   const { data: queue } = await admin
     .from("payroll_email_queue")
-    .select("*, salary_slip:salary_slips(pdf_base64)")
+    .select("*, salary_slip:salary_slips(pdf_base64), invoice:invoices(*)")
     .eq("payroll_period_id", periodId)
     .eq("status", "APPROVED");
 
@@ -679,22 +823,26 @@ export async function sendApprovedPayrollEmails(periodId: string) {
   let failed = 0;
 
   for (const item of queue || []) {
-    // Idempotency: skip if already SENT
+    // Get the PDF attachment - could be salary slip or invoice
     const slip = item.salary_slip as { pdf_base64?: string } | null;
+    const invoice = item.invoice as { id?: string; invoice_pdf_name?: string; pdf_base64?: string } | null;
+
+    const attachment = slip?.pdf_base64
+      ? { name: `salary-slip.pdf`, content: slip.pdf_base64, contentType: "application/pdf" }
+      : invoice?.pdf_base64
+        ? {
+            name: invoice.invoice_pdf_name || `invoice-${invoice.id}.pdf`,
+            content: invoice.pdf_base64,
+            contentType: "application/pdf",
+          }
+        : undefined;
+
     const result = await sendEmail({
       to: item.to_email,
       subject: item.subject,
       text: item.body_text,
       html: item.body_html || undefined,
-      attachments: slip?.pdf_base64
-        ? [
-            {
-              name: `salary-slip.pdf`,
-              content: slip.pdf_base64,
-              contentType: "application/pdf",
-            },
-          ]
-        : undefined,
+      attachments: attachment ? [attachment] : undefined,
     });
 
     if (!result.ok) {
@@ -709,7 +857,6 @@ export async function sendApprovedPayrollEmails(periodId: string) {
         .eq("id", item.id);
       continue;
     }
-
     sent += 1;
     await admin
       .from("payroll_email_queue")
@@ -829,6 +976,67 @@ export async function updatePayrollSettings(formData: FormData) {
   });
   revalidatePath("/admin/payroll/settings");
   return { success: true };
+}
+
+export async function updatePayrollRecordCalculation(recordId: string, overrides: {
+  base_salary?: number;
+  allowances?: number;
+  commission_total?: number;
+  bonus?: number;
+  deductions?: number;
+}): Promise<{ error?: string; record: any }> {
+  const actor = await requirePayrollAccess();
+  const admin = createAdminClient();
+
+  const { data: record, error: fetchErr } = await admin
+    .from("payroll_records")
+    .select("*")
+    .eq("id", recordId)
+    .single();
+  if (fetchErr || !record) return { error: "Record not found", record: null };
+
+  const updates: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (overrides.base_salary !== undefined) updates.base_salary = overrides.base_salary;
+  if (overrides.allowances !== undefined) updates.allowances = overrides.allowances;
+  if (overrides.commission_total !== undefined) updates.commission_total = overrides.commission_total;
+  if (overrides.bonus !== undefined) updates.bonus = overrides.bonus;
+  if (overrides.deductions !== undefined) updates.deductions = overrides.deductions;
+
+  const { error, data } = await admin
+    .from("payroll_records")
+    .update(updates)
+    .eq("id", recordId);
+
+  if (error) return { error: error.message, record: data };
+
+  // Recalculate gross and net pay
+  const lines = (record.line_items || []) as {
+    line_type: string;
+    description: string;
+    amount: number;
+  }[];
+  const base = Number(updates.base_salary || record.base_salary || 0);
+  const allowances = Number(updates.allowances || record.allowances || 0);
+  const commissions = Number(updates.commission_total || record.commission_total || 0);
+  const bonus = Number(updates.bonus || 0);
+  const deductions = Number(updates.deductions || 0);
+  const gross = parseFloat((base + allowances + commissions + bonus).toFixed(2));
+  const net = parseFloat((gross - deductions).toFixed(2));
+
+  const { error: updateErr, data: updated } = await admin
+    .from("payroll_records")
+    .update({
+      gross_pay: gross,
+      net_pay: net,
+    })
+    .eq("id", recordId);
+
+  if (updateErr) return { error: updateErr.message, record: updated };
+
+  return { error: null, record: updated };
 }
 
 export async function listCommissions(periodId?: string) {

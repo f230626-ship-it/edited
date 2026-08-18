@@ -41,7 +41,7 @@ export async function detectPayrollAnomalies(periodId: string): Promise<number> 
       anomalies.push({
         payroll_period_id: periodId,
         employee_id: r.employee_id,
-        severity: "CRITICAL",
+        severity: "WARNING",
         code: "MISSING_COMPENSATION",
         message: `${name} has no effective salary record for this period.`,
         entity_type: "payroll_record",
@@ -53,7 +53,7 @@ export async function detectPayrollAnomalies(periodId: string): Promise<number> 
       anomalies.push({
         payroll_period_id: periodId,
         employee_id: r.employee_id,
-        severity: "CRITICAL",
+        severity: "WARNING",
         code: "NEGATIVE_NET",
         message: `${name} has a negative net salary (${r.net_pay}).`,
         entity_type: "payroll_record",
@@ -65,7 +65,7 @@ export async function detectPayrollAnomalies(periodId: string): Promise<number> 
       anomalies.push({
         payroll_period_id: periodId,
         employee_id: r.employee_id,
-        severity: "CRITICAL",
+        severity: "WARNING",
         code: "MISSING_EMAIL",
         message: `${name} has no email address for salary slip delivery.`,
         entity_type: "employee",

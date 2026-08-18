@@ -91,7 +91,8 @@ SELECT v.name, v.role, v.pct, v.basis, true
 FROM (VALUES
   ('BD — 2% of collected revenue', 'bd', 2.0, 'PAID'),
   ('Closer — 5% of collected revenue', 'closer', 5.0, 'PAID'),
-  ('Upsell — 1.5% of collected revenue', 'upsell', 1.5, 'PAID')
+  ('Upsell — 1.5% of collected revenue', 'upsell', 1.5, 'PAID'),
+  ('Developer — 1% of collected revenue', 'developer', 1.0, 'PAID')
 ) AS v(name, role, pct, basis)
 WHERE NOT EXISTS (SELECT 1 FROM public.commission_rules LIMIT 1);
 

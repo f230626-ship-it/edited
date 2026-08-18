@@ -76,6 +76,26 @@ export async function calculateCommissionsForPeriod(params: {
     });
   }
 
+  const { data: employeesData } = await admin.from("employees").select("id, full_name");
+  const employeesList = employeesData || [];
+
+  function findEmployeesByLabel(label?: string | null): string[] {
+    if (!label || label === "—" || label === "None") return [];
+    const names = label.split(/[\+&,]| and /).map(s => s.trim()).filter(Boolean);
+    const ids: string[] = [];
+    for (const name of names) {
+      const lower = name.toLowerCase();
+      const exact = employeesList.find(e => e.full_name.toLowerCase() === lower);
+      if (exact) {
+        ids.push(exact.id);
+        continue;
+      }
+      const partial = employeesList.find(e => e.full_name.toLowerCase().includes(lower));
+      if (partial) ids.push(partial.id);
+    }
+    return ids;
+  }
+
   const results: CommissionCalcResult[] = [];
 
   // ── Payment-based commissions ────────────────────────────────────────────
@@ -86,7 +106,7 @@ export async function calculateCommissionsForPeriod(params: {
       id, amount, currency, paid_at, invoice_id,
       invoice:invoices(
         id, project_id, amount, currency, status, invoice_number,
-        project:projects(id, name, bd_id, closing_developer_id, value, payment_status, currency)
+        project:projects(id, name, bd_id, closing_developer_id, closer_label, assigned_resource_label, value, payment_status, currency)
       )
     `
     )
@@ -111,6 +131,22 @@ export async function calculateCommissionsForPeriod(params: {
         employeeId: project.closing_developer_id,
         role: "closer",
       });
+    }
+    if (project?.closer_label) {
+      const closerIds = findEmployeesByLabel(project.closer_label);
+      for (const closerId of closerIds) {
+        if (!assignments.some(a => a.employeeId === closerId && a.role === "closer")) {
+          assignments.push({ employeeId: closerId, role: "closer" });
+        }
+      }
+    }
+    
+    // Auto-extract assigned resources for developer commission
+    if (project?.assigned_resource_label) {
+      const resourceIds = findEmployeesByLabel(project.assigned_resource_label);
+      for (const resId of resourceIds) {
+        assignments.push({ employeeId: resId, role: "developer" });
+      }
     }
 
     if (!assignments.length) {
@@ -177,7 +213,7 @@ export async function calculateCommissionsForPeriod(params: {
   const { data: projects } = await admin
     .from("projects")
     .select(
-      "id, name, bd_id, closing_developer_id, value, payment_status, currency, updated_at"
+      "id, name, bd_id, closing_developer_id, closer_label, assigned_resource_label, value, payment_status, currency, updated_at"
     )
     .in("payment_status", ["Paid", "Partial"]);
 
@@ -213,6 +249,22 @@ export async function calculateCommissionsForPeriod(params: {
         employeeId: project.closing_developer_id,
         role: "closer",
       });
+    }
+    if (project.closer_label) {
+      const closerIds = findEmployeesByLabel(project.closer_label);
+      for (const closerId of closerIds) {
+        if (!assignments.some(a => a.employeeId === closerId && a.role === "closer")) {
+          assignments.push({ employeeId: closerId, role: "closer" });
+        }
+      }
+    }
+    
+    // Auto-extract assigned resources for developer commission
+    if (project.assigned_resource_label) {
+      const resourceIds = findEmployeesByLabel(project.assigned_resource_label);
+      for (const resId of resourceIds) {
+        assignments.push({ employeeId: resId, role: "developer" });
+      }
     }
 
     for (const a of assignments) {
