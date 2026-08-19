@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableHead, TableRow, TableCell, TableHeader } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { use } from "react";
 import { updatePayrollRecordCalculation } from "@/actions/payroll";
 import type { PayrollRecord } from "@/types/database";
 
@@ -24,12 +23,18 @@ export function CalculationReviewClient({
   const [pending, start] = useTransition();
   const [showOverride, setShowOverride] = useState(false);
   const [overrides, setOverrides] = useState<{
-    base_salary?: number;
-    allowances?: number;
-    commission_total?: number;
-    bonus?: number;
-    deductions?: number;
-  }>({});
+    base_salary: number;
+    allowances: number;
+    commission_total: number;
+    bonus: number;
+    deductions: number;
+  }>({
+    base_salary: Number(record.base_salary || 0),
+    allowances: Number(record.allowances || 0),
+    commission_total: Number(record.commission_total || 0),
+    bonus: Number(record.bonus || 0),
+    deductions: Number(record.deductions || 0),
+  });
 
   const employee = record.employee as {
     full_name: string;
@@ -43,16 +48,28 @@ export function CalculationReviewClient({
       a.sort_order - b.sort_order
   );
 
-  const baseSalary = Number(record.base_salary || 0);
-  const allowances = Number(record.allowances || 0);
-  const commissionTotal = Number(record.commission_total || 0);
-  const bonus = Number(record.bonus || 0);
-  const deductions = Number(record.deductions || 0);
-  const gross = parseFloat((baseSalary + allowances + commissionTotal + bonus).toFixed(2));
+  const base = Math.max(0, overrides.base_salary);
+  const allowances = Math.max(0, overrides.allowances);
+  const commission = Math.max(0, overrides.commission_total);
+  const bonus = Math.max(0, overrides.bonus);
+  const deductions = Math.max(0, overrides.deductions);
+  const gross = parseFloat((base + allowances + commission + bonus).toFixed(2));
   const net = Math.max(0, parseFloat((gross - deductions).toFixed(2)));
+
+  const hasChanges =
+    base !== Number(record.base_salary || 0) ||
+    allowances !== Number(record.allowances || 0) ||
+    commission !== Number(record.commission_total || 0) ||
+    bonus !== Number(record.bonus || 0) ||
+    deductions !== Number(record.deductions || 0);
 
   const fmt = (n: number) =>
     `${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  function handleFieldChange(field: keyof typeof overrides, value: string) {
+    const num = Number(value) || 0;
+    setOverrides((prev) => ({ ...prev, [field]: Math.max(0, num) }));
+  }
 
   return (
     <div className="space-y-6">
@@ -68,10 +85,8 @@ export function CalculationReviewClient({
                 type="number"
                 step="0.01"
                 min="0"
-                value={overrides.base_salary ?? baseSalary}
-                onChange={(e) =>
-                  setOverrides((prev) => ({ ...prev, base_salary: Math.max(0, Number(e.target.value) || 0) }))
-                }
+                value={overrides.base_salary}
+                onChange={(e) => handleFieldChange("base_salary", e.target.value)}
                 disabled={!showOverride}
               />
             </div>
@@ -81,10 +96,8 @@ export function CalculationReviewClient({
                 type="number"
                 step="0.01"
                 min="0"
-                value={overrides.allowances ?? allowances}
-                onChange={(e) =>
-                  setOverrides((prev) => ({ ...prev, allowances: Math.max(0, Number(e.target.value) || 0) }))
-                }
+                value={overrides.allowances}
+                onChange={(e) => handleFieldChange("allowances", e.target.value)}
                 disabled={!showOverride}
               />
             </div>
@@ -94,10 +107,8 @@ export function CalculationReviewClient({
                 type="number"
                 step="0.01"
                 min="0"
-                value={overrides.commission_total ?? commissionTotal}
-                onChange={(e) =>
-                  setOverrides((prev) => ({ ...prev, commission_total: Math.max(0, Number(e.target.value) || 0) }))
-                }
+                value={overrides.commission_total}
+                onChange={(e) => handleFieldChange("commission_total", e.target.value)}
                 disabled={!showOverride}
               />
             </div>
@@ -107,24 +118,20 @@ export function CalculationReviewClient({
                 type="number"
                 step="0.01"
                 min="0"
-                value={overrides.bonus ?? bonus}
-                onChange={(e) =>
-                  setOverrides((prev) => ({ ...prev, bonus: Math.max(0, Number(e.target.value) || 0) }))
-                }
+                value={overrides.bonus}
+                onChange={(e) => handleFieldChange("bonus", e.target.value)}
                 disabled={!showOverride}
               />
             </div>
           </div>
-          <div>
+          <div className="mt-4">
             <Label>Deductions</Label>
             <Input
               type="number"
               step="0.01"
               min="0"
-              value={overrides.deductions ?? deductions}
-              onChange={(e) =>
-                setOverrides((prev) => ({ ...prev, deductions: Math.max(0, Number(e.target.value) || 0) }))
-              }
+              value={overrides.deductions}
+              onChange={(e) => handleFieldChange("deductions", e.target.value)}
               disabled={!showOverride}
             />
           </div>
@@ -162,12 +169,17 @@ export function CalculationReviewClient({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Final Totals</CardTitle>
+          <CardTitle className="text-base">
+            Final Totals
+            {showOverride && hasChanges && (
+              <Badge variant="secondary" className="ml-2 text-xs">Live Preview</Badge>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-baseline justify-between">
             <span>Base Salary</span>
-            <span className="font-mono font-bold">{fmt(baseSalary)}</span>
+            <span className="font-mono font-bold">{fmt(base)}</span>
           </div>
           <div className="flex items-baseline justify-between">
             <span>Allowances</span>
@@ -175,7 +187,7 @@ export function CalculationReviewClient({
           </div>
           <div className="flex items-baseline justify-between">
             <span>Commission</span>
-            <span className="font-mono font-bold">{fmt(commissionTotal)}</span>
+            <span className="font-mono font-bold">{fmt(commission)}</span>
           </div>
           <div className="flex items-baseline justify-between">
             <span>Bonus</span>
@@ -200,15 +212,17 @@ export function CalculationReviewClient({
         </CardHeader>
         <CardContent>
           {showOverride ? (
-            <>
+            <div className="flex gap-2">
               <Button
                 size="sm"
+                disabled={pending || !hasChanges}
                 onClick={() => start(async () => {
                   const res = await updatePayrollRecordCalculation(record.id, overrides);
                   if (res.error) {
                     toast.error(res.error);
                   } else {
                     toast.success("Record updated successfully");
+                    setShowOverride(false);
                     router.refresh();
                   }
                 })}
@@ -220,12 +234,18 @@ export function CalculationReviewClient({
                 variant="outline"
                 onClick={() => {
                   setShowOverride(false);
-                  setOverrides({});
+                  setOverrides({
+                    base_salary: Number(record.base_salary || 0),
+                    allowances: Number(record.allowances || 0),
+                    commission_total: Number(record.commission_total || 0),
+                    bonus: Number(record.bonus || 0),
+                    deductions: Number(record.deductions || 0),
+                  });
                 }}
               >
                 Cancel
               </Button>
-            </>
+            </div>
           ) : (
             <Button
               size="sm"

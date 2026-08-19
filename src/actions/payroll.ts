@@ -999,11 +999,26 @@ export async function updatePayrollRecordCalculation(recordId: string, overrides
     updated_at: new Date().toISOString(),
   };
 
-  if (overrides.base_salary !== undefined) updates.base_salary = overrides.base_salary;
-  if (overrides.allowances !== undefined) updates.allowances = overrides.allowances;
-  if (overrides.commission_total !== undefined) updates.commission_total = overrides.commission_total;
-  if (overrides.bonus !== undefined) updates.bonus = overrides.bonus;
-  if (overrides.deductions !== undefined) updates.deductions = overrides.deductions;
+  if (overrides.base_salary !== undefined) {
+    if (overrides.base_salary < 0) return { error: "Base salary cannot be negative", record: null };
+    updates.base_salary = overrides.base_salary;
+  }
+  if (overrides.allowances !== undefined) {
+    if (overrides.allowances < 0) return { error: "Allowances cannot be negative", record: null };
+    updates.allowances = overrides.allowances;
+  }
+  if (overrides.commission_total !== undefined) {
+    if (overrides.commission_total < 0) return { error: "Commission cannot be negative", record: null };
+    updates.commission_total = overrides.commission_total;
+  }
+  if (overrides.bonus !== undefined) {
+    if (overrides.bonus < 0) return { error: "Bonus cannot be negative", record: null };
+    updates.bonus = overrides.bonus;
+  }
+  if (overrides.deductions !== undefined) {
+    if (overrides.deductions < 0) return { error: "Deductions cannot be negative", record: null };
+    updates.deductions = overrides.deductions;
+  }
 
   const { error, data } = await admin
     .from("payroll_records")
@@ -1013,18 +1028,13 @@ export async function updatePayrollRecordCalculation(recordId: string, overrides
   if (error) return { error: error.message, record: data };
 
   // Recalculate gross and net pay
-  const lines = (record.line_items || []) as {
-    line_type: string;
-    description: string;
-    amount: number;
-  }[];
-  const base = Number(updates.base_salary || record.base_salary || 0);
-  const allowances = Number(updates.allowances || record.allowances || 0);
-  const commissions = Number(updates.commission_total || record.commission_total || 0);
-  const bonus = Number(updates.bonus || 0);
-  const deductions = Number(updates.deductions || 0);
+  const base = Number(updates.base_salary ?? record.base_salary ?? 0);
+  const allowances = Number(updates.allowances ?? record.allowances ?? 0);
+  const commissions = Number(updates.commission_total ?? record.commission_total ?? 0);
+  const bonus = Number(updates.bonus ?? record.bonus ?? 0);
+  const deductions = Number(updates.deductions ?? record.deductions ?? 0);
   const gross = parseFloat((base + allowances + commissions + bonus).toFixed(2));
-  const net = parseFloat((gross - deductions).toFixed(2));
+  const net = Math.max(0, parseFloat((gross - deductions).toFixed(2)));
 
   const { error: updateErr, data: updated } = await admin
     .from("payroll_records")
@@ -1037,6 +1047,89 @@ export async function updatePayrollRecordCalculation(recordId: string, overrides
   if (updateErr) return { error: updateErr.message, record: updated };
 
   return { error: null, record: updated };
+}
+
+export async function getInvoicePdf(invoiceId: string) {
+  await requirePayrollAccess();
+  const admin = createAdminClient();
+
+  // Try stored PDF first
+  const { data: invoice, error } = await admin
+    .from("invoices")
+    .select("id, pdf_base64, invoice_pdf_name, client_name, amount, currency, invoice_number, employee_id, payroll_period_id")
+    .eq("id", invoiceId)
+    .single();
+  if (error || !invoice) return { error: error?.message || "Invoice not found", pdf: null, name: null };
+
+  if (invoice.pdf_base64) {
+    return {
+      error: null,
+      pdf: invoice.pdf_base64,
+      name: invoice.invoice_pdf_name || `invoice-${invoice.id}.pdf`,
+    };
+  }
+
+  // Generate PDF on-demand if not stored
+  if (!invoice.payroll_period_id || !invoice.employee_id) {
+    return { error: "This invoice has no linked payroll data for PDF generation", pdf: null, name: null };
+  }
+
+  const { data: settings } = await admin
+    .from("payroll_settings")
+    .select("*")
+    .eq("id", "default")
+    .maybeSingle();
+
+  const { data: record } = await admin
+    .from("payroll_records")
+    .select("*, employee:employees(id, full_name, designation), line_items:payroll_line_items(*)")
+    .eq("payroll_period_id", invoice.payroll_period_id)
+    .eq("employee_id", invoice.employee_id)
+    .single();
+
+  if (!record) return { error: "Payroll record not found for this invoice", pdf: null, name: null };
+
+  const emp = record.employee as { full_name: string; designation: string };
+  const period = await admin.from("payroll_periods").select("label, pay_date").eq("id", invoice.payroll_period_id).single();
+  const periodLabel = period.data?.label || "Payroll";
+
+  const lines = (record.line_items || []) as { line_type: string; description: string; amount: number }[];
+  const earningsLines = lines
+    .filter((l) => ["base_salary", "allowance", "commission", "bonus"].includes(l.line_type))
+    .map((l) => ({ description: l.description, amount: Number(l.amount) }));
+  const total = earningsLines.reduce((sum, item) => sum + item.amount, 0);
+
+  let pdfBuffer: Buffer;
+  try {
+    pdfBuffer = await renderInvoicePdf({
+      companyName: settings?.company_name || "MindVista",
+      companyAddress: settings?.company_address,
+      employeeName: emp.full_name,
+      designation: emp.designation,
+      periodLabel,
+      payDate: period.data?.pay_date || "",
+      currency: invoice.currency || "USD",
+      lineItems: earningsLines,
+      total,
+    });
+  } catch (pdfErr) {
+    console.error("[getInvoicePdf] renderInvoicePdf failed:", pdfErr);
+    return { error: "Failed to generate PDF: " + (pdfErr instanceof Error ? pdfErr.message : String(pdfErr)), pdf: null, name: null };
+  }
+
+  const pdfBase64 = pdfBuffer.toString("base64");
+
+  // Store for future use
+  await admin
+    .from("invoices")
+    .update({ pdf_base64: pdfBase64, invoice_pdf_name: `invoice-${invoice.id}.pdf`, updated_at: new Date().toISOString() })
+    .eq("id", invoiceId);
+
+  return {
+    error: null,
+    pdf: pdfBase64,
+    name: `invoice-${invoice.id}.pdf`,
+  };
 }
 
 export async function listCommissions(periodId?: string) {

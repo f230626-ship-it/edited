@@ -210,12 +210,19 @@ export async function calculateCommissionsForPeriod(params: {
   }
 
   // ── Project-value fallback for projects with no invoices ─────────────────
-  const { data: projects } = await admin
+  const { data: projects, error: projectsError } = await admin
     .from("projects")
     .select(
       "id, name, bd_id, closing_developer_id, closer_label, assigned_resource_label, value, payment_status, currency, updated_at"
     )
-    .in("payment_status", ["Paid", "Partial"]);
+    .or("closer_label.not.is.null,assigned_resource_label.not.is.null");
+
+  if (projectsError) {
+    warnings.push({
+      code: "PROJECTS_QUERY_ERROR",
+      message: `Failed to fetch projects: ${projectsError.message}`,
+    });
+  }
 
   const projectIdsWithInvoices = new Set(
     (payments || [])
@@ -236,10 +243,7 @@ export async function calculateCommissionsForPeriod(params: {
     if (projectIdsWithInvoices.has(project.id)) continue;
     if (!project.value || Number(project.value) <= 0) continue;
 
-    const revenue = partialProjectRevenue(
-      Number(project.value) || 0,
-      project.payment_status
-    );
+    const revenue = Number(project.value) || 0;
     if (revenue <= 0) continue;
 
     const assignments: { employeeId: string; role: string }[] = [];
@@ -273,7 +277,7 @@ export async function calculateCommissionsForPeriod(params: {
 
       warnings.push({
         code: "PROJECT_VALUE_FALLBACK",
-        message: `Project "${project.name}" has no invoices — commission uses project ${project.payment_status} value fallback.`,
+        message: `Project "${project.name}" — commission based on project value (${project.payment_status}).`,
         employeeId: a.employeeId,
         projectId: project.id,
       });
@@ -290,7 +294,7 @@ export async function calculateCommissionsForPeriod(params: {
         percentage: Number(roleRule.commission_percentage) || 0,
         commissionAmount: amount,
         currency: project.currency || "USD",
-        notes: `Fallback project value (${project.payment_status})`,
+        notes: `Project value — ${project.payment_status} status`,
       });
     }
   }

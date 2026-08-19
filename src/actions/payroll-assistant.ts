@@ -12,28 +12,35 @@ export async function askPayrollAssistant(question: string): Promise<{ answer: s
   const trimmed = (question || "").trim();
   if (!trimmed) return { answer: "Ask a payroll question." };
 
-  // Optional OpenAI enrichment when key is present — still grounded by tool answer first
   const grounded = await answerPayrollQuestion(trimmed);
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     return { answer: grounded };
   }
 
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.OPENAI_PAYROLL_MODEL || "gpt-4o-mini",
+        model: "llama-3.1-70b-versatile",
         temperature: 0,
         messages: [
           {
             role: "system",
-            content:
-              "You are a payroll explanation assistant for MindVista HRMS. You MUST only rephrase the provided TOOL_DATA. Never invent amounts. Never approve payroll or send emails. If data is missing, say so.",
+            content: `You are a payroll assistant for MindVista HRMS. You have access to real payroll data retrieved from the database. 
+
+RULES:
+- Only explain and rephrase the TOOL_DATA provided. Never invent amounts, names, or numbers.
+- Never approve payroll, send emails, change salaries, or mutate any data.
+- If data is missing or incomplete, say so clearly.
+- Be concise and professional. Use bullet points when listing multiple items.
+- You can do calculations on the data provided (e.g., totals, percentages, comparisons).
+- If the user asks about something outside payroll, politely redirect them to the relevant HR module.
+- Format responses nicely with clear structure.`,
           },
           {
             role: "user",
