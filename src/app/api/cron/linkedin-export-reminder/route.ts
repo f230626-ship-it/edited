@@ -1,30 +1,22 @@
-import { NextRequest, NextResponse } from "next/server";
-import { runLinkedInExportReminderCron } from "@/actions/linkedin-outreach";
+import { NextResponse } from "next/server";
 
 /**
- * Manual trigger for LinkedIn export reminders.
- * Can be called directly for testing: POST /api/cron/linkedin-export-reminder?force=1
+ * DEPRECATED — LinkedIn export reminders now only fire via production cron:
+ * - /api/cron/linkedin-weekly-reminder (last Friday of month)
+ * - /api/cron/linkedin-followup-reminder (Saturday after)
+ *
+ * This manual trigger endpoint has been disabled to prevent spam.
  */
-export async function GET(req: NextRequest) {
-  return handle(req);
+export async function GET() {
+  return NextResponse.json(
+    { error: "This endpoint has been disabled. Reminders only fire via production cron on the last Friday of each month." },
+    { status: 410 }
+  );
 }
 
-export async function POST(req: NextRequest) {
-  return handle(req);
-}
-
-async function handle(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  const secret = process.env.CRON_SECRET;
-
-  if (!secret) {
-    return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
-  }
-
-  if (auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const result = await runLinkedInExportReminderCron(true);
-  return NextResponse.json(result);
+export async function POST() {
+  return NextResponse.json(
+    { error: "This endpoint has been disabled. Reminders only fire via production cron on the last Friday of each month." },
+    { status: 410 }
+  );
 }
