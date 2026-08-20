@@ -20,6 +20,9 @@ import {
 } from "@/lib/linkedin/reminder-schedule";
 import { postSlackMessage, buildReminderBlocks } from "@/lib/slack";
 
+// Hardcoded Sales channel — LinkedIn reminders MUST go here, never to test channels.
+const SALES_CHANNEL_ID = "C0AUWEKB882";
+
 export interface OutreachProfile {
   id: string;
   name: string;
@@ -754,7 +757,7 @@ export async function runLinkedInExportReminderCron(
 
   // Slack is the primary channel; email env is optional (email sends currently skipped).
   const hasSlack =
-    !!process.env.SLACK_BOT_TOKEN && !!process.env.SLACK_CHANNEL_ID;
+    !!process.env.SLACK_BOT_TOKEN && !!SALES_CHANNEL_ID;
   if (!hasSlack) {
     return { sent: 0, skipped: 0, errors: [], reason: "Slack not configured" };
   }
@@ -835,7 +838,7 @@ export async function runLinkedInExportReminderCron(
   let deliveryError = "";
 
   try {
-    const ts = await postSlackMessage(process.env.SLACK_CHANNEL_ID!, channelText, blocks as any);
+    const ts = await postSlackMessage(SALES_CHANNEL_ID, channelText, blocks as any);
     if (ts) delivered = true;
     else deliveryError = "Slack postMessage returned null";
   } catch (e: any) {
@@ -886,7 +889,7 @@ export async function runFollowUpReminders(
   const supabase = createAdminClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://hrms.mindvista.io";
 
-  const hasSlack = !!process.env.SLACK_BOT_TOKEN && !!process.env.SLACK_CHANNEL_ID;
+  const hasSlack = !!process.env.SLACK_BOT_TOKEN && !!SALES_CHANNEL_ID;
   if (!hasSlack) return { sent: 0, errors: ["Slack not configured"], allUploaded: false, reportSent: false };
 
   const status = await getUploadStatus(year, month);
@@ -959,7 +962,7 @@ export async function runFollowUpReminders(
   let deliveryError = "";
 
   try {
-    const ts = await postSlackMessage(process.env.SLACK_CHANNEL_ID!, channelText, blocks as any);
+    const ts = await postSlackMessage(SALES_CHANNEL_ID, channelText, blocks as any);
     if (ts) delivered = true;
     else deliveryError = "Slack postMessage returned null";
   } catch (e: any) {
