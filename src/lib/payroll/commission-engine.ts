@@ -76,6 +76,26 @@ export async function calculateCommissionsForPeriod(params: {
     });
   }
 
+  const { data: employeesData } = await admin.from("employees").select("id, full_name");
+  const employeesList = employeesData || [];
+
+  function findEmployeesByLabel(label?: string | null): string[] {
+    if (!label || label === "—" || label === "None") return [];
+    const names = label.split(/[\+&,]| and /).map(s => s.trim()).filter(Boolean);
+    const ids: string[] = [];
+    for (const name of names) {
+      const lower = name.toLowerCase();
+      const exact = employeesList.find(e => e.full_name.toLowerCase() === lower);
+      if (exact) {
+        ids.push(exact.id);
+        continue;
+      }
+      const partial = employeesList.find(e => e.full_name.toLowerCase().includes(lower));
+      if (partial) ids.push(partial.id);
+    }
+    return ids;
+  }
+
   const results: CommissionCalcResult[] = [];
 
   // ── Payment-based commissions ────────────────────────────────────────────
@@ -86,7 +106,7 @@ export async function calculateCommissionsForPeriod(params: {
       id, amount, currency, paid_at, invoice_id,
       invoice:invoices(
         id, project_id, amount, currency, status, invoice_number,
-        project:projects(id, name, bd_id, closing_developer_id, value, payment_status, currency)
+        project:projects(id, name, bd_id, closing_developer_id, closer_label, assigned_resource_label, value, payment_status, currency)
       )
     `
     )
@@ -111,6 +131,22 @@ export async function calculateCommissionsForPeriod(params: {
         employeeId: project.closing_developer_id,
         role: "closer",
       });
+    }
+    if (project?.closer_label) {
+      const closerIds = findEmployeesByLabel(project.closer_label);
+      for (const closerId of closerIds) {
+        if (!assignments.some(a => a.employeeId === closerId && a.role === "closer")) {
+          assignments.push({ employeeId: closerId, role: "closer" });
+        }
+      }
+    }
+    
+    // Auto-extract assigned resources for developer commission
+    if (project?.assigned_resource_label) {
+      const resourceIds = findEmployeesByLabel(project.assigned_resource_label);
+      for (const resId of resourceIds) {
+        assignments.push({ employeeId: resId, role: "developer" });
+      }
     }
 
     if (!assignments.length) {
@@ -174,12 +210,19 @@ export async function calculateCommissionsForPeriod(params: {
   }
 
   // ── Project-value fallback for projects with no invoices ─────────────────
-  const { data: projects } = await admin
+  const { data: projects, error: projectsError } = await admin
     .from("projects")
     .select(
-      "id, name, bd_id, closing_developer_id, value, payment_status, currency, updated_at"
+      "id, name, bd_id, closing_developer_id, closer_label, assigned_resource_label, value, payment_status, currency, updated_at"
     )
-    .in("payment_status", ["Paid", "Partial"]);
+    .or("closer_label.not.is.null,assigned_resource_label.not.is.null");
+
+  if (projectsError) {
+    warnings.push({
+      code: "PROJECTS_QUERY_ERROR",
+      message: `Failed to fetch projects: ${projectsError.message}`,
+    });
+  }
 
   const projectIdsWithInvoices = new Set(
     (payments || [])
@@ -200,10 +243,7 @@ export async function calculateCommissionsForPeriod(params: {
     if (projectIdsWithInvoices.has(project.id)) continue;
     if (!project.value || Number(project.value) <= 0) continue;
 
-    const revenue = partialProjectRevenue(
-      Number(project.value) || 0,
-      project.payment_status
-    );
+    const revenue = Number(project.value) || 0;
     if (revenue <= 0) continue;
 
     const assignments: { employeeId: string; role: string }[] = [];
@@ -214,6 +254,22 @@ export async function calculateCommissionsForPeriod(params: {
         role: "closer",
       });
     }
+    if (project.closer_label) {
+      const closerIds = findEmployeesByLabel(project.closer_label);
+      for (const closerId of closerIds) {
+        if (!assignments.some(a => a.employeeId === closerId && a.role === "closer")) {
+          assignments.push({ employeeId: closerId, role: "closer" });
+        }
+      }
+    }
+    
+    // Auto-extract assigned resources for developer commission
+    if (project.assigned_resource_label) {
+      const resourceIds = findEmployeesByLabel(project.assigned_resource_label);
+      for (const resId of resourceIds) {
+        assignments.push({ employeeId: resId, role: "developer" });
+      }
+    }
 
     for (const a of assignments) {
       const roleRule = pickRule(rules, a.role, params.endDate);
@@ -221,7 +277,7 @@ export async function calculateCommissionsForPeriod(params: {
 
       warnings.push({
         code: "PROJECT_VALUE_FALLBACK",
-        message: `Project "${project.name}" has no invoices — commission uses project ${project.payment_status} value fallback.`,
+        message: `Project "${project.name}" — commission based on project value (${project.payment_status}).`,
         employeeId: a.employeeId,
         projectId: project.id,
       });
@@ -238,7 +294,7 @@ export async function calculateCommissionsForPeriod(params: {
         percentage: Number(roleRule.commission_percentage) || 0,
         commissionAmount: amount,
         currency: project.currency || "USD",
-        notes: `Fallback project value (${project.payment_status})`,
+        notes: `Project value — ${project.payment_status} status`,
       });
     }
   }

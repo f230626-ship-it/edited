@@ -20,6 +20,9 @@ import {
 } from "@/lib/linkedin/reminder-schedule";
 import { postSlackMessage, buildReminderBlocks } from "@/lib/slack";
 
+// Hardcoded Sales channel — LinkedIn reminders MUST go here, never to test channels.
+const SALES_CHANNEL_ID = "C0AUWEKB882";
+
 export interface OutreachProfile {
   id: string;
   name: string;
@@ -754,7 +757,7 @@ export async function runLinkedInExportReminderCron(
 
   // Slack is the primary channel; email env is optional (email sends currently skipped).
   const hasSlack =
-    !!process.env.SLACK_BOT_TOKEN && !!process.env.SLACK_CHANNEL_ID;
+    !!process.env.SLACK_BOT_TOKEN && !!SALES_CHANNEL_ID;
   if (!hasSlack) {
     return { sent: 0, skipped: 0, errors: [], reason: "Slack not configured" };
   }
@@ -775,6 +778,9 @@ export async function runLinkedInExportReminderCron(
   // Build missing profiles list with handler names
   const missingList = status.missing.map((m) => `• *${m.profileName}* — handled by ${m.name}`).join("\n");
 
+  // Base blocks match the screenshot format exactly:
+  // Header → "Hi team! 👋 / This is a monthly reminder..." → Upload button → Settings instructions
+  // Then a divider followed by the dynamic missing-profiles section.
   const blocks = [
     {
       type: "header",
@@ -784,7 +790,7 @@ export async function runLinkedInExportReminderCron(
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `Hi team 👋\n\nPlease upload the remaining LinkedIn exports for the following profiles:\n\n${missingList}\n\n*Upload status:* ${completedCount}/${status.required.length} profiles completed\n\nPlease upload the required LinkedIn exports to the dashboard. Once all required profiles are uploaded successfully, the monthly Sales report will be generated automatically and sent to the admin.`,
+        text: `Hi team! 👋\n\nThis is a monthly reminder to export and upload your LinkedIn data ZIP for *${monthLabel}*.\n\nPlease download your export from LinkedIn, then upload it to the dashboard to keep your outreach stats up to date.`,
       },
     },
     {
@@ -793,7 +799,7 @@ export async function runLinkedInExportReminderCron(
         {
           type: "button",
           text: { type: "plain_text", text: "Upload LinkedIn Export", emoji: true },
-          url: `${appUrl}/sales/linkedin?upload=1`,
+          url: `${appUrl}/sales/linkedin`,
           style: "primary",
         },
       ],
@@ -807,6 +813,23 @@ export async function runLinkedInExportReminderCron(
         },
       ],
     },
+    { type: "divider" },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Missing exports:*\n\n${missingList}`,
+      },
+    },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `_Upload status: ${completedCount}/${status.required.length} profiles completed_`,
+        },
+      ],
+    },
   ];
 
   const channelText = `LinkedIn Export Reminder — ${monthLabel}\n${completedCount}/${status.required.length} profiles uploaded.\nStill need:\n${status.missing.map((m) => `- ${m.profileName} (${m.name})`).join("\n")}\nUpload: ${appUrl}/sales/linkedin?upload=1`;
@@ -815,7 +838,7 @@ export async function runLinkedInExportReminderCron(
   let deliveryError = "";
 
   try {
-    const ts = await postSlackMessage(process.env.SLACK_CHANNEL_ID!, channelText, blocks as any);
+    const ts = await postSlackMessage(SALES_CHANNEL_ID, channelText, blocks as any);
     if (ts) delivered = true;
     else deliveryError = "Slack postMessage returned null";
   } catch (e: any) {
@@ -831,7 +854,7 @@ export async function runLinkedInExportReminderCron(
         period_month: month,
         profile_ids: [m.profileId],
         status: delivered ? "sent" : "failed",
-        message: delivered ? "Wednesday channel reminder" : deliveryError,
+        message: delivered ? "last-Friday channel reminder" : deliveryError,
         sent_at: new Date().toISOString(),
       },
       { onConflict: "employee_id,period_year,period_month" }
@@ -866,7 +889,7 @@ export async function runFollowUpReminders(
   const supabase = createAdminClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://hrms.mindvista.io";
 
-  const hasSlack = !!process.env.SLACK_BOT_TOKEN && !!process.env.SLACK_CHANNEL_ID;
+  const hasSlack = !!process.env.SLACK_BOT_TOKEN && !!SALES_CHANNEL_ID;
   if (!hasSlack) return { sent: 0, errors: ["Slack not configured"], allUploaded: false, reportSent: false };
 
   const status = await getUploadStatus(year, month);
@@ -886,19 +909,21 @@ export async function runFollowUpReminders(
 
   const monthLabel = `${["January","February","March","April","May","June","July","August","September","October","November","December"][month - 1]} ${year}`;
 
-  // Build follow-up list with handler names
+  // Build follow-up list with handler names (fresh DB check — only still-missing profiles)
   const missingList = status.missing.map((m) => `• *${m.profileName}* — handled by ${m.name}`).join("\n");
 
+  // Follow-up uses the same base format as the first reminder (matching the screenshot)
+  // so the message style is consistent across both sends.
   const blocks = [
     {
       type: "header",
-      text: { type: "plain_text", text: `📊 LinkedIn Export Follow-up — ${monthLabel}`, emoji: true },
+      text: { type: "plain_text", text: `📊 LinkedIn Export Reminder — ${monthLabel}`, emoji: true },
     },
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `The following LinkedIn exports are still pending:\n\n${missingList}\n\nPlease upload the remaining exports to complete this month's Sales report.`,
+        text: `Hi team! 👋\n\nThis is a monthly reminder to export and upload your LinkedIn data ZIP for *${monthLabel}*.\n\nPlease download your export from LinkedIn, then upload it to the dashboard to keep your outreach stats up to date.`,
       },
     },
     {
@@ -907,10 +932,27 @@ export async function runFollowUpReminders(
         {
           type: "button",
           text: { type: "plain_text", text: "Upload LinkedIn Export", emoji: true },
-          url: `${appUrl}/sales/linkedin?upload=1`,
+          url: `${appUrl}/sales/linkedin`,
           style: "primary",
         },
       ],
+    },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: "_Go to LinkedIn Settings > Data Privacy > Get a copy of your data > Request archive. Once ready, download the ZIP and upload it via the button above._",
+        },
+      ],
+    },
+    { type: "divider" },
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*Still missing exports:*\n\n${missingList}`,
+      },
     },
   ];
 
@@ -920,7 +962,7 @@ export async function runFollowUpReminders(
   let deliveryError = "";
 
   try {
-    const ts = await postSlackMessage(process.env.SLACK_CHANNEL_ID!, channelText, blocks as any);
+    const ts = await postSlackMessage(SALES_CHANNEL_ID, channelText, blocks as any);
     if (ts) delivered = true;
     else deliveryError = "Slack postMessage returned null";
   } catch (e: any) {
@@ -936,7 +978,7 @@ export async function runFollowUpReminders(
         period_month: month,
         profile_ids: [m.profileId],
         status: delivered ? "sent" : "failed",
-        message: delivered ? "Thursday channel follow-up" : deliveryError,
+        message: delivered ? "follow-up channel reminder" : deliveryError,
         sent_at: new Date().toISOString(),
       },
       { onConflict: "employee_id,period_year,period_month" }

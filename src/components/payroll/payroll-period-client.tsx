@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -20,9 +20,12 @@ import {
   approvePayrollPeriod,
   rejectPayrollPeriod,
   generateSalarySlips,
+  generateInvoice,
   resolvePayrollAnomaly,
   getPayrollRecordCalculation,
+  updatePayrollRecordCalculation,
 } from "@/actions/payroll";
+import { CalculationReviewClient } from "@/components/payroll/calculation-review-client";
 import type { PayrollAnomaly, PayrollPeriod, PayrollRecord } from "@/types/database";
 
 export function PayrollPeriodClient({
@@ -154,20 +157,36 @@ export function PayrollPeriodClient({
           )}
 
           {isApprover && (
-            <Button
-              variant="secondary"
-              disabled={pending || !["APPROVED", "PROCESSING", "COMPLETED"].includes(period.status)}
-              onClick={() =>
-                start(async () => {
-                  const res = await generateSalarySlips(period.id);
-                  if (res.error) toast.error(res.error);
-                  else toast.success(`Generated ${res.generated} salary slips + email drafts`);
-                  refresh();
-                })
-              }
-            >
-              Generate Salary Slips
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                disabled={pending || !["APPROVED", "PROCESSING", "COMPLETED"].includes(period.status)}
+                onClick={() =>
+                  start(async () => {
+                    const res = await generateSalarySlips(period.id);
+                    if (res.error) toast.error(res.error);
+                    else toast.success(`Generated ${res.generated} salary slips + email drafts`);
+                    refresh();
+                  })
+                }
+              >
+                Generate Slips
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={pending || !["APPROVED", "PROCESSING", "COMPLETED"].includes(period.status)}
+                onClick={() =>
+                  start(async () => {
+                    const res = await generateInvoice(period.id);
+                    if (res.error) toast.error(res.error);
+                    else toast.success(`Generated ${res.generated} invoices + email drafts`);
+                    refresh();
+                  })
+                }
+              >
+                Generate Invoices
+              </Button>
+            </div>
           )}
 
           <Link href={`/admin/payroll/emails?period=${period.id}`}>
@@ -253,109 +272,53 @@ export function PayrollPeriodClient({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {records.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell>
-                    <div className="font-medium">{r.employee?.full_name || "—"}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {r.employee?.designation}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm">
-                    {Number(r.base_salary + r.allowances).toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm">
-                    {Number(r.commission_total).toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm">
-                    {Number(r.deductions).toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm font-semibold">
-                    {Number(r.net_pay).toLocaleString()}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setCalcId(calcId === r.id ? null : r.id)}
-                    >
-                      View Calculation
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {records.map((r) => {
+                const isSelected = calcId === r.id;
+                return (
+                  <Fragment key={r.id}>
+                    <TableRow>
+                      <TableCell>
+                        <div className="font-medium">{r.employee?.full_name || "—"}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {r.employee?.designation}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm">
+                        {Number(r.base_salary + r.allowances).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm">
+                        {Number(r.commission_total).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm">
+                        {Number(r.deductions).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm font-semibold">
+                        {Number(r.net_pay).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant={isSelected ? "secondary" : "outline"}
+                          onClick={() => setCalcId(isSelected ? null : r.id)}
+                        >
+                          {isSelected ? "Close Review" : "View Calculation"}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                    {isSelected && (
+                      <TableRow className="bg-muted/30">
+                        <TableCell colSpan={6} className="p-6">
+                          <CalculationReviewClient record={r} periodId={period.id} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                );
+              })}
             </TableBody>
           </Table>
-          {calcId && (
-            <CalculationPanel recordId={calcId} onClose={() => setCalcId(null)} />
-          )}
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-function CalculationPanel({
-  recordId,
-  onClose,
-}: {
-  recordId: string;
-  onClose: () => void;
-}) {
-  const [lines, setLines] = useState<
-    { line_type: string; description: string; amount: number }[] | null
-  >(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setLines(null);
-    setError(null);
-    getPayrollRecordCalculation(recordId).then((res) => {
-      if (cancelled) return;
-      setLoading(false);
-      if (res.error) setError(res.error);
-      else
-        setLines(
-          (res.record?.line_items as {
-            line_type: string;
-            description: string;
-            amount: number;
-          }[]) || []
-        );
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [recordId]);
-
-  return (
-    <div className="mt-4 rounded-xl border border-border/50 bg-muted/20 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-bold">Calculation breakdown</h3>
-        <Button size="sm" variant="ghost" onClick={onClose}>
-          Close
-        </Button>
-      </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
-      {lines && (
-        <ul className="space-y-1 text-sm">
-          {lines.map((l, i) => (
-            <li key={i} className="flex justify-between gap-4">
-              <span>
-                <span className="text-xs uppercase text-muted-foreground mr-2">
-                  {l.line_type}
-                </span>
-                {l.description}
-              </span>
-              <span className="font-mono">{Number(l.amount).toLocaleString()}</span>
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   );
 }
